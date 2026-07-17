@@ -941,6 +941,9 @@ function saveModalSettings(){
   st.settings.maxTokens=st.settings.maxUnlimited?4096:(parseInt(G('modalMaxTokens').value)||4096);
   st.settings.temperature=parseFloat(G('modalTemp').value)??0.7;
   st.settings.systemPrompt=G('modalSysPrompt').value.trim();
+  st.settings.giteeToken=G('modalGiteeToken').value.trim();
+  st.settings.giteeRepo=G('modalGiteeRepo').value.trim();
+  st.settings.giteeBranch=G('modalGiteeBranch').value.trim()||'main';
   save(); closeSettings(); renderAll(); toast('已保存','success');
 }
 async function fetchModalModels(){
