@@ -923,6 +923,9 @@ function openSettings(){
   G('modalMaxTokens').disabled=ul;
   G('modalTemp').value=s.temperature??0.7;
   G('modalSysPrompt').value=s.systemPrompt||'';
+  G('modalGiteeToken').value=s.giteeToken||'';
+  G('modalGiteeRepo').value=s.giteeRepo||'';
+  G('modalGiteeBranch').value=s.giteeBranch||'main';
   G('settingsModal').classList.add('show');
 }
 function closeSettings(){G('settingsModal').classList.remove('show')}
