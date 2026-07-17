@@ -1,11 +1,21 @@
 {
   "data": {
-    "convs": [],
+    "convs": [
+      {
+        "id": "verify",
+        "title": "验证测试",
+        "msgs": [
+          {
+            "role": "user",
+            "content": "这条消息用于验证同步"
+          }
+        ]
+      }
+    ],
     "settings": {
       "modelName": "deepseek-chat"
     },
     "theme": "dark"
   },
-  "version": 2,
-  "date": "2026-07-17T14:48:31.224Z"
+  "timestamp": "2026-07-17T14:49:29.270Z"
 }
