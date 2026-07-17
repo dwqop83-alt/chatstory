@@ -1,5 +1,10 @@
 {
   "data": {
-    "test": true
-  }
+    "convs": [],
+    "settings": {
+      "modelName": "gpt-4o"
+    },
+    "theme": "dark"
+  },
+  "date": "2026-07-17T14:47:44.344Z"
 }
