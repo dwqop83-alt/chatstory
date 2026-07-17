@@ -2,9 +2,10 @@
   "data": {
     "convs": [],
     "settings": {
-      "modelName": "gpt-4o"
+      "modelName": "deepseek-chat"
     },
     "theme": "dark"
   },
-  "date": "2026-07-17T14:47:44.344Z"
+  "version": 2,
+  "date": "2026-07-17T14:48:31.224Z"
 }
