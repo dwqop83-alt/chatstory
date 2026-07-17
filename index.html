@@ -690,13 +690,19 @@ async function syncPull(){if(!confirm('工程下载：从 Gitee 拉取最新代�
 async function syncPush(){
   var msg=prompt('提交说明:','Sync from ChatStory');
   if(msg===null)return;
+  var tok=st.settings.giteeToken;
+  var rep=st.settings.giteeRepo;
+  var br=st.settings.giteeBranch;
+  console.log('Token:',tok?'***'+tok.slice(-4):'EMPTY','Repo:',rep,'Branch:',br);
   try{
-    var r=await fetch('/api/git/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,token:st.settings.giteeToken,repo:st.settings.giteeRepo,branch:st.settings.giteeBranch})});
-    var d=await r.json();
-    console.log('syncPush response:',d); if(d.push&&d.push.ok) toast('工程上传成功','success');
+    var r=await fetch('/api/git/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,token:tok,repo:rep,branch:br})});
+    var txt=await r.text();
+    console.log('Raw response:',txt);
+    var d=JSON.parse(txt);
+    if(d.push&&d.push.ok) toast('工程上传成功','success');
     else if(d.commit&&d.commit.output&&d.commit.output.includes('nothing to commit')) toast('没有变更','success');
-    else toast('上传失败: '+(d.push?d.push.error:d.commit?d.commit.error:d.error)+' [DEBUG:'+JSON.stringify(d).slice(0,200)+']','error');
-  }catch(e){toast('上传失败: '+e.message+' [NETERR]','error')}
+    else toast('上传失败 push='+d.push.ok+' commit='+d.commit.ok,'error');
+  }catch(e){toast('上传失败: '+e.message,'error')}
 }
 async function syncDataUpload(){
   if(!confirm('应用上传：将当前所有数据（对话、记忆、设置等）上传到 Gitee？')) return;
