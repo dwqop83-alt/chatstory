@@ -1,3 +1,15 @@
 {
-  "data": "hello"
+  "data": {
+    "convs": [
+      {
+        "id": "t1",
+        "title": "Test",
+        "msgs": []
+      }
+    ],
+    "settings": {
+      "modelName": "gpt-4o"
+    },
+    "theme": "dark"
+  }
 }
