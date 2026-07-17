@@ -693,10 +693,10 @@ async function syncPush(){
   try{
     var r=await fetch('/api/git/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,token:st.settings.giteeToken,repo:st.settings.giteeRepo,branch:st.settings.giteeBranch})});
     var d=await r.json();
-    if(d.push&&d.push.ok) toast('工程上传成功','success');
+    console.log('syncPush response:',d); if(d.push&&d.push.ok) toast('工程上传成功','success');
     else if(d.commit&&d.commit.output&&d.commit.output.includes('nothing to commit')) toast('没有变更','success');
-    else toast('上传失败: '+(d.push?d.push.error:d.commit?d.commit.error:d.error),'error');
-  }catch(e){toast('上传失败: '+e.message,'error')}
+    else toast('上传失败: '+(d.push?d.push.error:d.commit?d.commit.error:d.error)+' [DEBUG:'+JSON.stringify(d).slice(0,200)+']','error');
+  }catch(e){toast('上传失败: '+e.message+' [NETERR]','error')}
 }
 async function syncDataUpload(){
   if(!confirm('应用上传：将当前所有数据（对话、记忆、设置等）上传到 Gitee？')) return;
