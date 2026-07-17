@@ -679,10 +679,9 @@ function flagToReview(){
 function flagMsg(e,i){e.stopPropagation();var c=getActive();if(!c)return;var m=c.msgs[i];if(!m||m.role!=='assistant')return;G('rvText').value=m.content;jumpTo('review')}
 
 // ===== GITEE SYNC =====
-async function syncPull(){
-  if(!confirm('工程下载：从 Gitee 拉取最新代码？')) return;
+async function syncPull(){if(!confirm('工程下载：从 Gitee 拉取最新代码？')) return;
   try{
-    var r=await fetch('/api/git/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    var r=await fetch('/api/git/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:st.settings.giteeToken,repo:st.settings.giteeRepo,branch:st.settings.giteeBranch})});
     var d=await r.json();
     if(d.pull&&d.pull.ok){toast('工程下载成功','success');setTimeout(function(){location.reload()},500)}
     else toast('下载失败: '+(d.pull?d.pull.error:d.error),'error');
@@ -692,7 +691,7 @@ async function syncPush(){
   var msg=prompt('提交说明:','Sync from ChatStory');
   if(msg===null)return;
   try{
-    var r=await fetch('/api/git/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+    var r=await fetch('/api/git/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,token:st.settings.giteeToken,repo:st.settings.giteeRepo,branch:st.settings.giteeBranch})});
     var d=await r.json();
     if(d.push&&d.push.ok) toast('工程上传成功','success');
     else if(d.commit&&d.commit.output&&d.commit.output.includes('nothing to commit')) toast('没有变更','success');
