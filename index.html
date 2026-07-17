@@ -326,6 +326,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
         </div>
       </div>
 
+      <!-- 5. 信息备份 -->
+      <div class="side-sec">
+        <div class="side-sec-hdr collapsed" onclick="toggleSec('backup',this)"><span>💾 信息备份</span><span class="arr">▼</span></div>
+        <div class="side-sec-body hidden" id="secBackup">
+          <div class="pad" style="display:flex;flex-direction:column;gap:8px">
+            <p style="font-size:11px;color:var(--text-secondary);line-height:1.5">导出快捷提示词、低级作家、高级作家、长期记忆的数据为 JSON 文件，或从文件导入恢复。</p>
+            <div style="display:flex;gap:6px">
+              <button class="btn-sm" onclick="exportData()" style="flex:1">📤 导出</button>
+              <button class="btn-sm" onclick="document.getElementById('importFile').click()" style="flex:1">📥 导入</button>
+              <input type="file" id="importFile" accept=".json" onchange="importData(event)" style="display:none">
+            </div>
+            <div id="backupStatus" style="font-size:11px;color:var(--text-secondary)"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="sidebar-footer" style="border-top:1px solid var(--border);padding:8px 12px">
         <div class="icn-btn full" onclick="openSettings()" style="font-size:13px">⚙️ 设置</div>
       </div>
@@ -425,6 +441,7 @@ function toggleSec(name, el){
   if(name==='review'){renderRVs();renderRvReasons()}
   if(name==='good'){renderGVs();renderGvReasons()}
   if(name==='memory') renderMems();
+  if(name==='backup'){}
   }
 
 function expandAndJump(name){var sb=G('sidebar');sb.classList.remove('collapsed');jumpTo(name)}
@@ -435,6 +452,7 @@ function jumpTo(name){
   hdr.classList.remove('collapsed');
   if(name==='review'){renderRVs();renderRvReasons()}
   if(name==='good'){renderGVs();renderGvReasons()}
+  if(name==='backup'){}
   hdr.scrollIntoView({behavior:'smooth'});
 }
 
@@ -725,6 +743,99 @@ async function syncDataDownload(){
       toast('应用数据已恢复','success');
     }else{toast('无可用数据','error')}
   }catch(e){toast('下载失败: '+e.message,'error')}
+}
+// ===== BACKUP (信息备份) =====
+function exportData(){
+  var data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    quickPrompts: st.qps,
+    reviewEntries: st.rvEntries,
+    reviewReasons: st.rvReasons,
+    goodEntries: st.gvEntries,
+    goodReasons: st.gvReasons,
+    memories: st.memories
+  };
+  var json = JSON.stringify(data, null, 2);
+  var blob = new Blob([json], {type: 'application/json'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'chatstory-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('已导出','success');
+}
+function importData(e){
+  var file = e.target.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      var data = JSON.parse(ev.target.result);
+      if(!data.version){toast('无效的备份文件','error');return}
+      var merged = 0;
+      // Merge quick prompts (deduplicate by content)
+      if(data.quickPrompts && Array.isArray(data.quickPrompts)){
+        for(var q of data.quickPrompts){
+          if(!st.qps.find(function(x){return x.content===q.content})){
+            st.qps.push(q); merged++;
+          }
+        }
+      }
+      // Merge review entries
+      if(data.reviewEntries && Array.isArray(data.reviewEntries)){
+        for(var r of data.reviewEntries){
+          if(!st.rvEntries.find(function(x){return x.text===r.text})){
+            st.rvEntries.push(r); merged++;
+          }
+        }
+        st.rvEntries.forEach(function(e,i){e.num=i+1});
+      }
+      // Merge review reasons
+      if(data.reviewReasons && Array.isArray(data.reviewReasons)){
+        for(var rr of data.reviewReasons){
+          if(!st.rvReasons.includes(rr)){st.rvReasons.push(rr); merged++}
+        }
+      }
+      // Merge good entries
+      if(data.goodEntries && Array.isArray(data.goodEntries)){
+        for(var g of data.goodEntries){
+          if(!st.gvEntries.find(function(x){return x.text===g.text})){
+            st.gvEntries.push(g); merged++;
+          }
+        }
+        st.gvEntries.forEach(function(e,i){e.num=i+1});
+      }
+      // Merge good reasons
+      if(data.goodReasons && Array.isArray(data.goodReasons)){
+        for(var gr of data.goodReasons){
+          if(!st.gvReasons.includes(gr)){st.gvReasons.push(gr); merged++}
+        }
+      }
+      // Merge memories
+      if(data.memories && Array.isArray(data.memories)){
+        for(var mem of data.memories){
+          var existing = st.memories.find(function(x){return x.name===mem.name});
+          if(existing){
+            for(var item of mem.items){
+              if(!existing.items.find(function(x){return x.content===item.content})){
+                existing.items.push(item); merged++;
+              }
+            }
+          }else{
+            st.memories.push(mem); merged++;
+          }
+        }
+      }
+      save(); renderAll();
+      if(st.memories.length) renderMems();
+      if(st.rvEntries.length) renderRVs();
+      toast('导入完成，合并 '+merged+' 条','success');
+    }catch(err){toast('解析失败: '+err.message,'error')}
+  };
+  reader.readAsText(file);
+  e.target.value = '';
 }
 // ===== TOAST =====
 function toast(msg,type){var t=document.createElement('div');t.className='toast '+type;t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.style.opacity='0';t.style.transition='opacity 0.3s';setTimeout(function(){t.remove()},300)},2000)}
