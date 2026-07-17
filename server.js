@@ -4,9 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
 const DIR = __dirname;
-const GIT = '"C:\\Program Files\\Git\\bin\\git.exe"';
+const GIT = process.platform === 'win32' ? '"C:\\Program Files\\Git\\bin\\git.exe"' : 'git';
 
 const MIME = {
   '.html': 'text/html', '.js': 'application/javascript', '.json': 'application/json',
