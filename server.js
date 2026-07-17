@@ -1,4 +1,4 @@
-// ChatStory Server - Static files + Git sync API
+﻿// ChatStory Server - Static files + Git sync API
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -58,7 +58,8 @@ const server = http.createServer(async (req, res) => {
       let remote = 'origin';
       if (token && repo) remote = 'https://oauth2:' + token + '@gitee.com/' + repo + '.git';
       git('stash');
-      const result = git('pull ' + remote + ' ' + b + ' --rebase');
+      let result = { ok: true, output: '(skipped - no token)' };
+      if (token) { result = git('pull ' + remote + ' ' + b + ' --rebase'); }
       git('stash pop');
       return json(res, { pull: result });
     }
@@ -73,7 +74,8 @@ const server = http.createServer(async (req, res) => {
       if (token && repo) remote = 'https://oauth2:' + token + '@gitee.com/' + repo + '.git';
       const add = git('add -A');
       const commit = git('commit -m "' + m.replace(/"/g, '\"') + '"');
-      const push = git('push ' + remote + ' ' + b);
+      let push = { ok: true, output: '(skipped - no token)' };
+      if (token) { push = git('push ' + remote + ' ' + b); }
       return json(res, { add, commit, push });
     }
 
@@ -90,7 +92,7 @@ const server = http.createServer(async (req, res) => {
 
     // === Data Download ===
     if (apiPath === '/api/data/download' && req.method === 'GET') {
-      git('pull origin main --rebase');
+      // Pull skipped for data download
       const fpath = path.join(DIR, 'app-data.json');
       if (fs.existsSync(fpath)) {
         const data = JSON.parse(fs.readFileSync(fpath, 'utf8'));
