@@ -101,7 +101,14 @@
         </div>
       </div>
 
-      <!-- 5. 信息备份 -->
+      <!-- 4.5 世界观数据 -->
+<div class="side-sec">
+<div class="side-sec-hdr collapsed" onclick="toggleSec('lorebookList',this)"><span>🌍 世界观数据</span><span class="arr">▼</span></div>
+<div class="side-sec-body hidden" id="secLorebookList">
+<div id="lorebookList"><div style="font-size:11px;color:var(--text-secondary);padding:8px;text-align:center">暂无保存的世界观数据</div></div>
+</div>
+</div>
+<!-- 5. 信息备份 -->
       <div class="side-sec">
         <div class="side-sec-hdr collapsed" onclick="toggleSec('backup',this)"><span>💾 信息备份</span><span class="arr">▼</span></div>
         <div class="side-sec-body hidden" id="secBackup">
@@ -137,6 +144,7 @@
     <span title="快捷提示词" onclick="expandAndJump('prompts')" style="cursor:pointer;font-size:18px">💡</span>
     <span title="低级作家" onclick="expandAndJump('review')" style="cursor:pointer;font-size:18px">✍️</span>
     <span title="长期记忆" onclick="expandAndJump('memory')" style="cursor:pointer;font-size:18px">🧠</span>
+<span title="世界观数据" onclick="expandAndJump('lorebookList')" style="cursor:pointer;font-size:18px">🌍</span>
     <span title="设置" onclick="openSettings()" style="cursor:pointer;font-size:18px">⚙️</span>
   </div>
   </aside>

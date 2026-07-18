@@ -32,6 +32,7 @@ function toggleSec(name, el){
   if(name==='good'){renderGVs();renderGvReasons()}
   if(name==='memory') renderMems();
   if(name==='backup'){}
+  if(name==='lorebookList') renderLorebookList();
   }
 
 function expandAndJump(name){var sb=G('sidebar');sb.classList.remove('collapsed');jumpTo(name)}
@@ -43,6 +44,7 @@ function jumpTo(name){
   if(name==='review'){renderRVs();renderRvReasons()}
   if(name==='good'){renderGVs();renderGvReasons()}
   if(name==='backup'){}
+  if(name==='lorebookList') renderLorebookList();
   hdr.scrollIntoView({behavior:'smooth'});
 }
 
