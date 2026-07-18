@@ -155,7 +155,7 @@ const server = http.createServer(async (req, res) => {
       const add = git('add -A');
       const commit = git('commit -m "' + m.replace(/"/g, '\\"') + '"');
       let push = { ok: true, output: '(skipped - no token)' };
-      if (token) { push = git('push ' + remote + ' ' + b + ' --force-with-lease'); }
+      if (token) { git('fetch ' + remote + ' ' + b); push = git('push ' + remote + ' ' + b + ' --force'); }
       return json(res, { add, commit, push });
     }
     // Data Upload
