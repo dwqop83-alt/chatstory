@@ -1,0 +1,200 @@
+// ===== LOREBOOK EXTRACTION =====
+var _loreData=null,_loreStats=null,_loreTab="characters",_rawTab="prompt";
+var _pubTab="progress",_pubRawSub="prompt",_rawPrompt="",_rawResponse="",_rawParsed=null;
+var _progressTimer=null,_progressStart=0;
+
+function switchPubTab(t){_pubTab=t;var tabs=G("pubProgress").querySelectorAll(".pub-tab");for(var i=0;i<tabs.length;i++){var tb=tabs[i];var active=tb.dataset.pubtab===t;tb.style.background=active?"var(--hover)":"transparent";tb.style.color=active?"var(--text)":"var(--text-secondary)"}G("pubProgressView").style.display=t==="progress"?"":"none";G("pubRawView").style.display=t==="raw"?"":"none";if(t==="raw")renderPubRaw()}
+function switchPubRawSub(s){_pubRawSub=s;var btns=G("pubRawView").querySelectorAll(".pub-raw-sub");for(var i=0;i<btns.length;i++){var b=btns[i];var isActive=(s==="prompt"&&b.textContent.indexOf("Prompt")>=0)||(s==="response"&&b.textContent.indexOf("响应")>=0)||(s==="parsed"&&b.textContent.indexOf("解析")>=0);b.style.background=isActive?"var(--accent)":"var(--hover)";b.style.color=isActive?"#fff":"var(--text-secondary)"}renderPubRaw()}
+function renderPubRaw(){var el=G("pubRawContent");if(!el)return;if(_pubRawSub==="prompt")el.textContent=_rawPrompt||"(等待Prompt构建...)";else if(_pubRawSub==="response")el.textContent=_rawResponse||"(等待模型响应...)";else if(_pubRawSub==="parsed")el.textContent=_rawParsed?JSON.stringify(_rawParsed,null,2):"(等待解析完成...)"}
+function updateRawPrompt(){if(G("pubRawContent")&&_pubRawSub==="prompt")G("pubRawContent").textContent=_rawPrompt||""}
+function updateRawResponse(){if(G("pubRawContent")&&_pubRawSub==="response")G("pubRawContent").textContent=_rawResponse||""}
+function updateRawParsed(){if(G("pubRawContent")&&_pubRawSub==="parsed")G("pubRawContent").textContent=_rawParsed?JSON.stringify(_rawParsed,null,2):""}
+
+async function compressContext(){
+  try{
+  var s=st.settings;
+  if(!s.apiBaseUrl||!s.apiKey||!s.modelName){toast("请先配置API","error");return}
+  var conv=getActive();if(!conv||!conv.msgs.length){toast("当前对话为空","error");return}
+  var compressBtn=G("compressBtn");if(compressBtn)compressBtn.disabled=true;
+  showProgress("??? Lorebook 世界观提取中...");
+  updateProgress(2,"?? 扫描对话结构...");
+  var pairs=[];
+  for(var i=0;i<conv.msgs.length;i++){
+    var m=conv.msgs[i];var content=typeof m.content==="string"?m.content:(Array.isArray(m.content)?m.content.map(function(p){return p.type==="text"?p.text:""}).join(" "):JSON.stringify(m.content));
+    if(!content||!content.trim()||m.error)continue;
+    if(m.role==="user"){var next=conv.msgs[i+1];var ai="";if(next&&next.role==="assistant"&&!next.error){ai=typeof next.content==="string"?next.content:(Array.isArray(next.content)?next.content.map(function(p){return p.type==="text"?p.text:""}).join(" "):JSON.stringify(next.content));i++}pairs.push({user:content,assistant:ai})}
+  }
+  if(!pairs.length){toast("无可压缩内容","error");if(compressBtn)compressBtn.disabled=false;return}
+  var totalPairs=pairs.length;var origChars=0;for(var pi=0;pi<pairs.length;pi++)origChars+=pairs[pi].user.length+(pairs[pi].assistant?pairs[pi].assistant.length:0);
+  var dl=G("pubDetail");if(dl){dl.style.display="";dl.innerHTML=""}
+  function addLog(txt){var d=G("pubDetail");if(d){d.style.display="";d.innerHTML+=txt+"<br>";d.scrollTop=d.scrollHeight}}
+  addLog("?? 共"+totalPairs+"段 · "+(origChars>1000?(origChars/1000).toFixed(1)+"K":origChars)+"字符");updateProgress(5,"?? "+totalPairs+"段 · "+(origChars>1000?(origChars/1000).toFixed(1)+"K":origChars)+"字符");
+  var lore={characters:[],settings:[],plotPoints:[],worldRules:[]};_loreData=lore;_rawPrompt="";_rawResponse="";
+  for(var pi=0;pi<pairs.length;pi++){
+    var pair=pairs[pi];var pairNum=pi+1;var pctBase=5+Math.floor(85*pi/totalPairs);var pctNext=5+Math.floor(85*(pi+1)/totalPairs);
+    updateProgress(pctBase,"?? 发送第"+pairNum+"/"+totalPairs+"段...");addLog("?? 第"+pairNum+"/"+totalPairs+"段 · 用户"+pair.user.length+"字"+(pair.assistant?", AI"+pair.assistant.length+"字":""));
+    _rawPrompt="第"+pairNum+"/"+totalPairs+"段\n用户: "+pair.user+(pair.assistant?"\nAI: "+pair.assistant:"");updateRawPrompt();
+    var knownCtx="";if(lore.characters.length>0){knownCtx="\n## 已建立的角色（需补充完善）\n";for(var kc=0;kc<lore.characters.length;kc++){var kch=lore.characters[kc];knownCtx+="- "+kch.name+(kch.alias?"（曾用称呼："+kch.alias+"）":"")+"\n"}}
+    var chunkPrompt="你是一个小说世界观提取助手。从以下对话片段中提取所有世界观信息。\n\n要求：\n1. 尽可能全面、细致地提取，包括外貌细节、性格特点、人物关系、背景设定等\n2. 即使是前面已出现过的角色，每次提到新的特征、关系、背景都要提取出来\n3. 注意同一角色的不同称呼（本名、昵称、亲属称谓等），识别为同一人\n4. 描述要具体，不要用空泛的概括\n"+knownCtx+"\n严格输出JSON（不要markdown代码块）：\n{\n  \"characters\":[{\"name\":\"角色名\",\"alias\":\"别名/称号（多个称呼用逗号分隔）\",\"calledBy\":\"其他角色对该角色的称呼\",\"role\":\"主角/配角/反派/龙套\",\"gender\":\"性别\",\"age\":\"年龄\",\"appearance\":\"外貌（五官、发型、配饰、身材等）\",\"sexualFeatures\":\"性器官特征\",\"fetish\":\"性癖\",\"personality\":\"性格\",\"background\":\"背景故事\",\"relationships\":\"与其他角色关系\",\"sexPositions\":\"出现过的做爱姿势及次数\",\"arc\":\"角色心理转变\",\"notes\":\"补充\"}],\n  \"settings\":[{\"name\":\"场景/地点名\",\"type\":\"城市/建筑/自然/室内\",\"era\":\"时代背景\",\"description\":\"详细描述（环境、陈设、氛围细节）\",\"atmosphere\":\"氛围/基调\",\"significance\":\"叙事作用\",\"notes\":\"补充\"}],\n  \"plotPoints\":[{\"event\":\"事件描述\",\"chapter\":\"章节\",\"type\":\"主线/支线/情感/冲突\",\"status\":\"进行中/已解决\",\"significance\":\"对故事的重要性\",\"relatedChars\":\"涉及角色\",\"psychologicalChange\":\"角色心理转变\",\"notes\":\"补充\"}],\n  \"worldRules\":[{\"rule\":\"世界观规则\",\"category\":\"魔法/科技/社会/文化/政治\",\"scope\":\"适用范围\",\"details\":\"详细说明\",\"notes\":\"补充\"}]\n}\n\n对话片段：\n用户: "+pair.user+(pair.assistant?"\nAI: "+pair.assistant:"");
+    _rawPrompt="第"+pairNum+"/"+totalPairs+"段 完整Prompt:\n"+chunkPrompt;updateRawPrompt();
+    var bodyObj={model:s.modelName,messages:[{role:"system",content:"你是一个专业的小说世界观提取助手。请仔细阅读以下对话片段，从中提取所有世界观相关信息。要求全面、细致、不遗漏。"},{role:"user",content:chunkPrompt}],max_tokens:s.maxUnlimited?16384:(s.maxTokens||4096),temperature:0.3};
+    _abortController=new AbortController();var reqStart=Date.now();var TIMEOUT_MS=600000;
+    try{
+      updateProgress(pctBase+Math.floor((pctNext-pctBase)/4),"? 等待AI响应...");addLog("? 发送请求 ("+JSON.stringify(bodyObj).length+"字节)...");
+      var resp=await Promise.race([fetch(s.apiBaseUrl.replace(/\/+$/,"")+"/chat/completions",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+s.apiKey},body:JSON.stringify(bodyObj),signal:_abortController.signal}),new Promise(function(_,reject){setTimeout(function(){_abortController.abort();reject(new Error("请求超时(600s)"))},TIMEOUT_MS)})]);
+      _abortController=null;var reqTime=Date.now()-reqStart;addLog("? HTTP "+resp.status+" ("+(reqTime/1000).toFixed(1)+"s)");
+      if(!resp.ok){var errText=await resp.text();addLog("?? API错误: "+errText.substring(0,200));throw new Error("API "+resp.status)}
+      var data=await resp.json();var raw=data.choices&&data.choices[0]?data.choices[0].message.content:"";_rawResponse=raw;updateRawResponse();addLog("?? 接收: "+(raw?raw.length:0)+"字符");
+      updateProgress(pctBase+Math.floor((pctNext-pctBase)/2),"?? 解析JSON...");addLog("?? 解析中...");
+      var chunk=null;try{var jsonStr=raw.replace(/```json\n?/g,"").replace(/```/g,"").trim();if(jsonStr.indexOf("{")>=0){jsonStr=jsonStr.substring(jsonStr.indexOf("{"));if(jsonStr.lastIndexOf("}")>=0)jsonStr=jsonStr.substring(0,jsonStr.lastIndexOf("}")+1)}chunk=JSON.parse(jsonStr)}catch(je){addLog("?? JSON解析失败: "+je.message);chunk={characters:[],settings:[],plotPoints:[],worldRules:[]}}
+      mergeLore(lore,chunk);addLog("? 提取: ??"+(chunk.characters||[]).length+" ??"+(chunk.settings||[]).length+" ??"+(chunk.plotPoints||[]).length+" ??"+(chunk.worldRules||[]).length);
+      _loreData=lore;_rawParsed=lore;updateRawParsed();updateLoreCards();
+      updateProgress(pctNext,"? 第"+pairNum+"/"+totalPairs+"段完成");
+    }catch(e){_abortController=null;addLog("?? 第"+pairNum+"段失败: "+e.message);updateProgress(pctNext,"?? 第"+pairNum+"段失败")}
+  }
+  var cC=lore.characters.length,cS=lore.settings.length,cP=lore.plotPoints.length,cR=lore.worldRules.length;var totalCards=cC+cS+cP+cR;
+  if(totalCards===0)throw new Error("未提取到任何内容");
+  var statsStr="原文 "+origChars.toLocaleString()+" 字 →";if(cC)statsStr+="??"+cC+" ";if(cS)statsStr+="??"+cS+" ";if(cP)statsStr+="??"+cP+" ";if(cR)statsStr+="??"+cR+" ";
+  var statsObj={totalCards:totalCards,origChars:origChars,elapsed:Math.floor((Date.now()-_progressStart)/1000),str:statsStr};
+  addLog("? 完成! 共"+totalCards+" 张卡片");updateProgress(100,"? "+statsStr.trim());
+  _loreData=lore;_loreStats=statsObj;_rawParsed=lore;
+  await new Promise(function(r){setTimeout(r,600)});hideProgress(500);renderLoreModal(lore,statsObj);
+  toast("? 提取 "+totalCards+" 张世界观卡片","success");
+  }catch(e){var cb=G("compressBtn");if(cb)cb.disabled=false;hideProgress(500);toast("? 提取失败: "+e.message,"error")}
+}
+
+function mergeLore(lore,chunk){
+  if(!chunk||!chunk.characters)return;
+  var cArr=chunk.characters||[],sArr=chunk.settings||[],pArr=chunk.plotPoints||[],wArr=chunk.worldRules||[];
+  for(var i=0;i<cArr.length;i++){var nc=cArr[i];if(!nc.name)continue;var found=null;
+    for(var j=0;j<lore.characters.length;j++){var ec=lore.characters[j];
+      if(ec.name===nc.name||(nc.alias&&nc.alias.indexOf(ec.name)>=0)||(ec.alias&&ec.alias.indexOf(nc.name)>=0)){found=ec;break}
+    }
+    if(found){for(var k in nc){if(k!=="name"&&nc[k]&&(!found[k]||found[k]===nc[k]||nc[k].length>found[k].length))found[k]=nc[k]}if(nc.name!==found.name&&found.alias&&found.alias.indexOf(nc.name)<0)found.alias+=","+nc.name}else{lore.characters.push(nc)}
+  }
+  for(var i=0;i<sArr.length;i++){var ns=sArr[i];if(!ns.name)continue;var found=null;
+    for(var j=0;j<lore.settings.length;j++){if(lore.settings[j].name===ns.name){found=j;break}}
+    if(found!==null){for(var k in ns){if(k!=="name"&&ns[k]&&(!lore.settings[found][k]||ns[k].length>lore.settings[found][k].length))lore.settings[found][k]=ns[k]}}else{lore.settings.push(ns)}
+  }
+  for(var i=0;i<pArr.length;i++){var np=pArr[i];if(!np.event)continue;var found=null;
+    for(var j=0;j<lore.plotPoints.length;j++){if(lore.plotPoints[j].event===np.event){found=j;break}}
+    if(found!==null){for(var k in np){if(k!=="event"&&np[k]&&(!lore.plotPoints[found][k]||np[k].length>lore.plotPoints[found][k].length))lore.plotPoints[found][k]=np[k]}}else{lore.plotPoints.push(np)}
+  }
+  for(var i=0;i<wArr.length;i++){var nw=wArr[i];if(!nw.rule)continue;var found=null;
+    for(var j=0;j<lore.worldRules.length;j++){if(lore.worldRules[j].rule===nw.rule){found=j;break}}
+    if(found!==null){for(var k in nw){if(k!=="rule"&&nw[k]&&(!lore.worldRules[found][k]||nw[k].length>lore.worldRules[found][k].length))lore.worldRules[found][k]=nw[k]}}else{lore.worldRules.push(nw)}
+  }
+}
+
+function updateLoreCards(){var modal=G("compressModal");if(modal&&modal.style.display==="flex"){G("loreCount_c").textContent="("+((_loreData.characters||[]).length)+")";G("loreCount_s").textContent="("+((_loreData.settings||[]).length)+")";G("loreCount_p").textContent="("+((_loreData.plotPoints||[]).length)+")";G("loreCount_w").textContent="("+((_loreData.worldRules||[]).length)+")";renderLoreTab()}}
+
+var keyMap={name:"角色名",alias:"别称",calledBy:"其他称呼",role:"角色定位",gender:"性别",age:"年龄",appearance:"外貌",sexualFeatures:"性器官特征",fetish:"性癖",personality:"性格",background:"背景",relationships:"关系",sexPositions:"做爱姿势",arc:"心理转变",notes:"备注",event:"事件",chapter:"章节",type:"类型",status:"状态",significance:"重要性",relatedChars:"相关角色",psychologicalChange:"心理转变",description:"描述",atmosphere:"氛围",era:"时代",rule:"规则",category:"类别",scope:"范围",details:"详情"};
+
+function buildLoreContext(lore,detail){
+  lore=lore||st.lorebook||{};var parts=[];
+  if(lore.characters&&lore.characters.length){parts.push(detail?"## 角色详情":"## 角色");
+    for(var i=0;i<lore.characters.length;i++){var c3=lore.characters[i];
+      if(detail){var lines=[];lines.push("- **"+c3.name+"**"+(c3.alias?"（"+c3.alias+"）":"")+(c3.role?" · "+c3.role:"")+(c3.gender?" · "+c3.gender:"")+(c3.age?" · "+c3.age+"岁":""));
+        if(c3.appearance)lines.push("  外貌："+c3.appearance);if(c3.personality)lines.push("  性格："+c3.personality);
+        if(c3.background)lines.push("  背景："+c3.background);if(c3.relationships)lines.push("  关系："+c3.relationships);
+        if(c3.calledBy)lines.push("  称呼："+c3.calledBy);if(c3.fetish)lines.push("  性癖："+c3.fetish);
+        if(c3.sexualFeatures)lines.push("  性特征："+c3.sexualFeatures);if(c3.sexPositions)lines.push("  性姿势："+c3.sexPositions);
+        if(c3.arc)lines.push("  心理转变："+c3.arc);if(c3.notes)lines.push("  备注："+c3.notes);parts.push(lines.join("\n"));
+      }else{parts.push("- "+c3.name+(c3.role?" ("+c3.role+")":"")+(c3.personality?": "+c3.personality:""))}
+    }
+  }
+  if(lore.settings&&lore.settings.length){parts.push(detail?"## 场景详情":"## 场景");
+    for(var i=0;i<lore.settings.length;i++){var s2=lore.settings[i];
+      if(detail)parts.push("- **"+s2.name+"**"+(s2.type?" ["+s2.type+"]":"")+(s2.era?" · "+s2.era:"")+"\n  "+(s2.description||"")+(s2.atmosphere?" · 氛围："+s2.atmosphere:"")+(s2.significance?" · 作用："+s2.significance:""));
+      else parts.push("- "+s2.name+(s2.type?" ["+s2.type+"]":"")+(s2.description?": "+s2.description.substring(0,80):""))
+    }
+  }
+  if(lore.plotPoints&&lore.plotPoints.length){parts.push(detail?"## 情节节点":"## 情节节点");
+    for(var i=0;i<lore.plotPoints.length;i++){var p2=lore.plotPoints[i];
+      if(detail)parts.push("- **"+p2.event+"**"+(p2.chapter?" ["+p2.chapter+"]":"")+(p2.type?" · "+p2.type:"")+(p2.status?" · "+p2.status:"")+"\n  重要性："+(p2.significance||"")+(p2.relatedChars?"\n  角色："+p2.relatedChars:"")+(p2.psychologicalChange?"\n  心理转变："+p2.psychologicalChange:""));
+      else parts.push("- "+p2.event+(p2.status?" ["+p2.status+"]":""))
+    }
+  }
+  if(lore.worldRules&&lore.worldRules.length){parts.push(detail?"## 世界观规则":"## 世界观规则");
+    for(var i=0;i<lore.worldRules.length;i++){var w=lore.worldRules[i];
+      if(detail)parts.push("- **"+w.rule+"**"+(w.category?" ["+w.category+"]":"")+(w.scope?" · 范围："+w.scope:"")+"\n  "+(w.details||""));
+      else parts.push("- "+w.rule+(w.category?" ["+w.category+"]":"")+(w.details?": "+w.details.substring(0,60):""))
+    }
+  }
+  return parts.join("\n\n");
+}
+
+function buildContinuationContext(){
+  var parts=["# 续写上下文\n请严格基于以下设定续写，保持人物性格、情节、文风一致。\n"];
+  var lore=st.lorebook||_loreData||{characters:[],settings:[],plotPoints:[],worldRules:[]};
+  var hasLore=lore.characters.length+lore.settings.length+lore.plotPoints.length+lore.worldRules.length>0;
+  if(hasLore)parts.push("---\n## ?? 小说世界观\n"+buildLoreContext(lore,true));
+  if(st.gvEntries&&st.gvEntries.length){var gv=["---\n## ? 优秀描写参考（文风、用词习惯）"];var n=0;
+    for(var i=0;i<st.gvEntries.length;i++){var e=st.gvEntries[i];if(e.aiAnalysis&&e.aiAnalysis.trim()&&e.aiAnalysis.indexOf("(失败")<0){gv.push("- "+e.aiAnalysis);n++;if(n>=10)break}}
+    if(n>0)parts.push(gv.join("\n"));
+  }
+  if(st.rvEntries&&st.rvEntries.length){var rv=["---\n## ?? 应避免的写法"];var n=0;
+    for(var i=0;i<st.rvEntries.length;i++){var e=st.rvEntries[i];if(e.aiAnalysis&&e.aiAnalysis.trim()&&e.aiAnalysis.indexOf("(失败")<0){rv.push("- "+e.aiAnalysis);n++;if(n>=10)break}}
+    if(n>0)parts.push(rv.join("\n"));
+  }
+  parts.push("---\n## ?? 续写要求\n1. 严格遵循以上角色设定、情节走向和世界观规则\n2. 模仿参考的优秀描写风格和用词习惯\n3. 避免负向规则中列出的写法\n4. 自然衔接前文内容，保持叙述连贯\n5. 角色对话和内心活动要符合其性格设定");
+  return parts.join("\n\n");
+}
+
+function useContinuationContext(){var ctx=buildContinuationContext();userInput.value=ctx;userInput.style.height="auto";userInput.style.height=Math.min(userInput.scrollHeight,250)+"px";closeCompress();userInput.focus();toast("续写上下文已加载到发送框，可编辑后发送","success")}
+
+// ===== COMPRESS MODAL =====
+function closeCompress(){var m=G("compressModal");if(m)m.style.display="none";var cb=G("compressBtn");if(cb)cb.disabled=false}
+
+function renderLoreTab(){var el=G("loreTabContent");if(!el)return;var tab=_loreTab||"characters";var data=_loreData||{characters:[],settings:[],plotPoints:[],worldRules:[]};var items,html="";if(tab==="characters"){items=data.characters||[];if(!items.length){el.innerHTML='<div style="color:var(--text-secondary);padding:20px;text-align:center">暂无角色数据</div>';return}html='<div style="display:flex;flex-direction:column;gap:10px">';for(var i=0;i<items.length;i++){var c=items[i];html+='<div style="background:var(--hover);border-radius:8px;padding:12px">';html+='<div style="font-weight:700;font-size:14px;margin-bottom:6px">?? '+esc(c.name||'未知')+(c.alias?' <span style="color:var(--text-secondary);font-size:11px">('+esc(c.alias)+')</span>':'')+'</div>';var fields=["role","gender","age","appearance","sexualFeatures","fetish","personality","background","relationships","calledBy","sexPositions","arc","notes"];for(var fi=0;fi<fields.length;fi++){var f=fields[fi];var v=c[f];if(v&&v.trim())html+='<div style="font-size:11px;margin:3px 0"><span style="color:var(--text-secondary);font-weight:600">'+(keyMap[f]||f)+'：</span>'+esc(v)+'</div>'}html+='</div>'}html+='</div>'}else if(tab==="settings"){items=data.settings||[];if(!items.length){el.innerHTML='<div style="color:var(--text-secondary);padding:20px;text-align:center">暂无场景数据</div>';return}html='<div style="display:flex;flex-direction:column;gap:10px">';for(var i=0;i<items.length;i++){var s=items[i];html+='<div style="background:var(--hover);border-radius:8px;padding:12px">';html+='<div style="font-weight:700;font-size:14px;margin-bottom:6px">?? '+esc(s.name||'未知')+(s.type?' <span style="color:var(--text-secondary);font-size:11px">['+esc(s.type)+']</span>':'')+'</div>';var sfields=["description","atmosphere","era","significance","notes"];for(var fi=0;fi<sfields.length;fi++){var f=sfields[fi];var v=s[f];if(v&&v.trim())html+='<div style="font-size:11px;margin:3px 0"><span style="color:var(--text-secondary);font-weight:600">'+(keyMap[f]||f)+'：</span>'+esc(v)+'</div>'}html+='</div>'}html+='</div>'}else if(tab==="plots"){items=data.plotPoints||[];if(!items.length){el.innerHTML='<div style="color:var(--text-secondary);padding:20px;text-align:center">暂无情节数据</div>';return}html='<div style="display:flex;flex-direction:column;gap:10px">';for(var i=0;i<items.length;i++){var p=items[i];html+='<div style="background:var(--hover);border-radius:8px;padding:12px">';html+='<div style="font-weight:700;font-size:14px;margin-bottom:6px">?? '+esc(p.event||'未知事件')+(p.chapter?' <span style="color:var(--text-secondary);font-size:11px">['+esc(p.chapter)+']</span>':'')+'</div>';var pfields=["type","status","significance","relatedChars","psychologicalChange","notes"];for(var fi=0;fi<pfields.length;fi++){var f=pfields[fi];var v=p[f];if(v&&v.trim())html+='<div style="font-size:11px;margin:3px 0"><span style="color:var(--text-secondary);font-weight:600">'+(keyMap[f]||f)+'：</span>'+esc(v)+'</div>'}html+='</div>'}html+='</div>'}else if(tab==="world"){items=data.worldRules||[];if(!items.length){el.innerHTML='<div style="color:var(--text-secondary);padding:20px;text-align:center">暂无世界观数据</div>';return}html='<div style="display:flex;flex-direction:column;gap:10px">';for(var i=0;i<items.length;i++){var w=items[i];html+='<div style="background:var(--hover);border-radius:8px;padding:12px">';html+='<div style="font-weight:700;font-size:14px;margin-bottom:6px">?? '+esc(w.rule||'未知规则')+(w.category?' <span style="color:var(--text-secondary);font-size:11px">['+esc(w.category)+']</span>':'')+'</div>';var wfields=["scope","details","notes"];for(var fi=0;fi<wfields.length;fi++){var f=wfields[fi];var v=w[f];if(v&&v.trim())html+='<div style="font-size:11px;margin:3px 0"><span style="color:var(--text-secondary);font-weight:600">'+(keyMap[f]||f)+'：</span>'+esc(v)+'</div>'}html+='</div>'}html+='</div>'}el.innerHTML=html}
+
+function switchLoreTab(tab){_loreTab=tab;var m=G("compressModal");if(!m)return;var btns=m.querySelectorAll(".lore-tab");for(var i=0;i<btns.length;i++){var b=btns[i];var active=b.dataset.loretab===tab;b.style.background=active?"var(--accent)":"var(--hover)";b.style.color=active?"#fff":"var(--text-secondary)"}renderLoreTab()}
+
+function renderLoreModal(lore,stats){
+  if(!lore)lore=_loreData||{characters:[],settings:[],plotPoints:[],worldRules:[]};
+  if(!stats)stats=_loreStats||{};
+  var modal=G("compressModal");
+  if(!modal){
+    var d=document.createElement("div");d.id="compressModal";d.className="modal-overlay";
+    d.style.cssText="display:flex;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1100;align-items:center;justify-content:center";
+    d.addEventListener("click",function(e){if(e.target===this)closeCompress()});
+    d.innerHTML='<div class="modal" style="max-width:800px;width:95vw;max-height:90vh;overflow-y:auto;background:var(--sidebar-bg);border-radius:12px;padding:20px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'+
+        '<div style="font-size:17px;font-weight:700">?? 世界观 Lorebook · 提取结果</div>'+
+        '<div style="display:flex;gap:6px">'+
+          '<button class="btn-sm" onclick="openRawModal()" style="padding:5px 10px;font-size:11px;background:var(--hover);color:var(--text);border:none;border-radius:6px;cursor:pointer">?? 原始数据</button>'+
+          '<button class="btn-sm" onclick="saveLorebook()" style="padding:5px 10px;font-size:11px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">?? 保存</button>'+
+          '<button class="btn-sm" onclick="useCompressed()" style="padding:5px 10px;font-size:11px;background:#10a37f;color:#fff;border:none;border-radius:6px;cursor:pointer">?? 续写</button>'+
+          '<button class="btn-sm" onclick="closeCompress()" style="padding:5px 10px;font-size:11px;background:#666;color:#fff;border:none;border-radius:6px;cursor:pointer">? 关闭</button>'+
+        '</div>'+
+      '</div>'+
+      '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px">卡片: '+stats.totalCards+' · 原始: '+(stats.origChars||0).toLocaleString()+'字 · 耗时: '+(stats.elapsed||0)+'s</div>'+
+      '<div style="display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:8px">'+
+        '<button class="lore-tab active" data-loretab="characters" onclick="switchLoreTab(\'characters\')" style="flex:1;padding:6px 8px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:11px;border-radius:6px">?? 角色 <span id="loreCount_c">('+(lore.characters||[]).length+')</span></button>'+
+        '<button class="lore-tab" data-loretab="settings" onclick="switchLoreTab(\'settings\')" style="flex:1;padding:6px 8px;border:none;background:var(--hover);color:var(--text-secondary);cursor:pointer;font-size:11px;border-radius:6px">?? 场景 <span id="loreCount_s">('+(lore.settings||[]).length+')</span></button>'+
+        '<button class="lore-tab" data-loretab="plots" onclick="switchLoreTab(\'plots\')" style="flex:1;padding:6px 8px;border:none;background:var(--hover);color:var(--text-secondary);cursor:pointer;font-size:11px;border-radius:6px">?? 情节 <span id="loreCount_p">('+(lore.plotPoints||[]).length+')</span></button>'+
+        '<button class="lore-tab" data-loretab="world" onclick="switchLoreTab(\'world\')" style="flex:1;padding:6px 8px;border:none;background:var(--hover);color:var(--text-secondary);cursor:pointer;font-size:11px;border-radius:6px">?? 世界观 <span id="loreCount_w">('+(lore.worldRules||[]).length+')</span></button>'+
+      '</div>'+
+      '<div id="loreTabContent" style="max-height:50vh;overflow-y:auto;font-size:12px;line-height:1.6"></div>'+
+    '</div>';
+    document.body.appendChild(d);
+    _loreTab="characters";renderLoreTab();
+  }else{
+    modal.style.display="flex";
+    G("loreCount_c").textContent="("+(lore.characters||[]).length+")";
+    G("loreCount_s").textContent="("+(lore.settings||[]).length+")";
+    G("loreCount_p").textContent="("+(lore.plotPoints||[]).length+")";
+    G("loreCount_w").textContent="("+(lore.worldRules||[]).length+")";
+    _loreTab="characters";switchLoreTab("characters");
+  }
+}
+
+function saveLorebook(){if(!_loreData){toast("无数据可保存","error");return}st.lorebook=_loreData;save();toast("? 世界观已保存","success")}
+
+function useCompressed(){var ctx=buildContinuationContext();userInput.value=ctx;userInput.style.height="auto";userInput.style.height=Math.min(userInput.scrollHeight,250)+"px";closeCompress();userInput.focus();toast("续写上下文已加载到发送框，可编辑后发送","success")}
+
+// ===== RAW MODAL =====
+function openRawModal(){var m=G("rawModal");if(!m)return;m.style.display="flex";_rawTab="prompt";switchRawTab("prompt")}
+function closeRawModal(){var m=G("rawModal");if(m)m.style.display="none"}
+function switchRawTab(tab){_rawTab=tab;var m=G("rawModal");if(!m)return;var btns=m.querySelectorAll("[data-rawtab]");for(var i=0;i<btns.length;i++){var b=btns[i];var active=b.dataset.rawtab===tab;b.style.background=active?"var(--accent)":"var(--hover)";b.style.color=active?"#fff":"var(--text-secondary)"}var el=G("rawContent");if(!el)return;if(tab==="prompt")el.textContent=_rawPrompt||"(等待Prompt构建...)";else if(tab==="response")el.textContent=_rawResponse||"(等待模型响应...)";else if(tab==="parsed")el.textContent=_rawParsed?JSON.stringify(_rawParsed,null,2):"(等待解析完成...)"}
+function copyRawData(){var el=G("rawContent");if(!el)return;var text=el.textContent||"";if(navigator.clipboard){navigator.clipboard.writeText(text).then(function(){toast("已复制","success")}).catch(function(){toast("复制失败","error")})}else{var ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);toast("已复制","success")}}
