@@ -193,6 +193,114 @@ const server = http.createServer(async (req, res) => {
       return json(res, { add, commit, push });
     }
 
+    // GitHub API helper using https module (more reliable than fetch)
+function githubRequest(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const https = require('https');
+    const reqOpts = {
+      hostname: u.hostname,
+      port: u.port || 443,
+      path: u.pathname + u.search,
+      method: options.method || 'GET',
+      headers: { 'User-Agent': 'ChatStory', ...options.headers },
+      timeout: 30000
+    };
+    if (options.body) {
+      reqOpts.headers['Content-Type'] = 'application/json';
+      reqOpts.headers['Content-Length'] = Buffer.byteLength(options.body);
+    }
+    const req = https.request(reqOpts, (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        resolve({
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode,
+          json: () => { try { return Promise.resolve(JSON.parse(data)); } catch(e) { return Promise.reject(e); } },
+          text: () => Promise.resolve(data)
+        });
+      });
+    });
+    req.on('timeout', () => { req.destroy(); reject(new Error('Request timeout')); });
+    req.on('error', (e) => reject(new Error(e.message || 'Network error')));
+    if (options.body) req.write(options.body);
+    req.end();
+  });
+}
+
+// GitHub API Push single file (with timing)
+    if (apiPath === '/api/github/push-file' && req.method === 'POST') {
+      const body = await readBody(req);
+      const { token, repo, branch, file, message } = JSON.parse(body || '{}');
+      if (!token || !repo || !file) return json(res, { error: 'Missing token, repo or file' }, 400);
+      
+      const [owner, repoName] = repo.split('/');
+      const fpath = path.join(DIR, file);
+      if (!fs.existsSync(fpath)) return json(res, { error: 'File not found: ' + file }, 404);
+      
+      const content = fs.readFileSync(fpath);
+      const base64 = content.toString('base64');
+      const fileSize = content.length;
+      const t0 = Date.now();
+      
+      try {
+        let sha = null;
+        for (let retry = 0; retry < 3; retry++) {
+          try {
+            const getRes = await githubRequest('https://api.github.com/repos/' + owner + '/' + repoName + '/contents/' + file + '?ref=' + (branch||'main'), {
+              headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (getRes.ok) {
+              const data = await getRes.json();
+              sha = data.sha;
+              break;
+            }
+          } catch(e) {
+            if (retry < 2) await new Promise(r => setTimeout(r, 1000));
+          }
+        }
+        
+        const putBody = JSON.stringify({
+          message: message || 'Publish from ChatStory',
+          content: base64,
+          branch: branch || 'main',
+          sha: sha || undefined
+        });
+        
+        let putRes;
+        let putErr;
+        for (let retry = 0; retry < 3; retry++) {
+          try {
+            putRes = await githubRequest('https://api.github.com/repos/' + owner + '/' + repoName + '/contents/' + file, {
+              method: 'PUT',
+              headers: { 'Authorization': 'Bearer ' + token },
+              body: putBody
+            });
+            putErr = null;
+            break;
+          } catch(e) {
+            putErr = e;
+            if (retry < 2) await new Promise(r => setTimeout(r, 2000));
+          }
+        }
+        if (!putRes && putErr) throw putErr;
+        
+        const elapsed = Date.now() - t0;
+        
+        if (putRes.ok) {
+          return json(res, { ok: true, file: file, size: fileSize, elapsedMs: elapsed, speedKBs: Math.round(fileSize / Math.max(1, elapsed) * 1000 / 1024 * 10) / 10 });
+        } else {
+          const errText = await putRes.text();
+          let errMsg = errText.substring(0,300);
+          try { const ej = JSON.parse(errText); errMsg = ej.message || errMsg; } catch(e) {}
+          return json(res, { ok: false, file: file, error: errMsg, size: fileSize, elapsedMs: elapsed });
+        }
+      } catch(e) {
+        return json(res, { ok: false, file: file, error: e.message, size: fileSize, elapsedMs: Date.now() - t0 });
+      }
+    }
+    
     // GitHub API Push (direct file push via API)
     if (apiPath === '/api/github/push' && req.method === 'POST') {
       const body = await readBody(req);
@@ -213,8 +321,8 @@ const server = http.createServer(async (req, res) => {
           // Get current SHA if file exists
           let sha = null;
           try {
-            const getRes = await fetch('https://api.github.com/repos/' + owner + '/' + repoName + '/contents/' + file + '?ref=' + (branch||'main'), {
-              headers: { 'Authorization': 'Bearer ' + token, 'User-Agent': 'ChatStory' }
+            const getRes = await githubRequest('https://api.github.com/repos/' + owner + '/' + repoName + '/contents/' + file + '?ref=' + (branch||'main'), {
+              headers: { 'Authorization': 'Bearer ' + token }
             });
             if (getRes.ok) {
               const data = await getRes.json();
@@ -227,12 +335,12 @@ const server = http.createServer(async (req, res) => {
             message: message || 'Publish from ChatStory',
             content: base64,
             branch: branch || 'main',
-            sha: sha
+            sha: sha || undefined
           });
           
-          const putRes = await fetch('https://api.github.com/repos/' + owner + '/' + repoName + '/contents/' + file, {
+          const putRes = await githubRequest('https://api.github.com/repos/' + owner + '/' + repoName + '/contents/' + file, {
             method: 'PUT',
-            headers: { 'Authorization': 'Bearer ' + token, 'User-Agent': 'ChatStory', 'Content-Type': 'application/json' },
+            headers: { 'Authorization': 'Bearer ' + token },
             body: body
           });
           
