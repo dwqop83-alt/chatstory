@@ -768,7 +768,7 @@ async function publishApp(){
     var r=await fetch('/api/git/push',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:msg,token:s.githubToken,repo:s.githubRepo,branch:s.githubBranch||'main'})
+      body:JSON.stringify({message:msg,token:s.githubToken,repo:s.githubRepo,branch:s.githubBranch||'main',platform:'github'})
     });
     var d=await r.json();
     if(d.push&&d.push.ok){

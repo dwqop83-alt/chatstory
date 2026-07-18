@@ -133,10 +133,11 @@ const server = http.createServer(async (req, res) => {
     // Git Pull
     if (apiPath === '/api/git/pull' && req.method === 'POST') {
       const body = await readBody(req);
-      const { branch, token, repo } = JSON.parse(body || '{}');
+      const { branch, token, repo, platform } = JSON.parse(body || '{}');
       const b = branch || 'main';
+      const host = platform === 'github' ? 'github.com' : 'gitee.com';
       let remote = 'origin';
-      if (token && repo) remote = 'https://oauth2:' + token + '@gitee.com/' + repo + '.git';
+      if (token && repo) remote = 'https://oauth2:' + token + '@' + host + '/' + repo + '.git';
       git('stash');
       const result = git('pull ' + remote + ' ' + b + ' --rebase');
       git('stash pop');
@@ -145,11 +146,12 @@ const server = http.createServer(async (req, res) => {
     // Git Push
     if (apiPath === '/api/git/push' && req.method === 'POST') {
       const body = await readBody(req);
-      const { branch, message, token, repo } = JSON.parse(body || '{}');
+      const { branch, message, token, repo, platform } = JSON.parse(body || '{}');
       const b = branch || 'main';
       const m = message || 'Sync from ChatStory';
+      const host = platform === 'github' ? 'github.com' : 'gitee.com';
       let remote = 'origin';
-      if (token && repo) remote = 'https://oauth2:' + token + '@gitee.com/' + repo + '.git';
+      if (token && repo) remote = 'https://oauth2:' + token + '@' + host + '/' + repo + '.git';
       const add = git('add -A');
       const commit = git('commit -m "' + m.replace(/"/g, '\\"') + '"');
       let push = { ok: true, output: '(skipped - no token)' };
