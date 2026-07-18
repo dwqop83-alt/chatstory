@@ -98,7 +98,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .review-form textarea{resize:vertical;min-height:50px}
 .review-form textarea:focus,.review-form select:focus,.review-form input:focus{border-color:var(--accent)}.good-list{padding:4px}.good-entry{background:var(--chat-bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin:4px;position:relative}.good-entry-num{font-size:11px;color:#22c55e;font-weight:700}.good-entry-date{font-size:10px;color:var(--text-secondary)}.good-entry-text{font-size:12px;line-height:1.5;padding:6px;background:var(--assistant-bubble);border-radius:4px;border-left:3px solid #22c55e;max-height:80px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;margin:6px 0}.good-entry-reason{font-size:11px;margin-bottom:4px}.good-entry-reason strong{color:#22c55e}.good-entry-ai{font-size:11px;padding:6px;background:rgba(34,197,94,0.08);border-radius:4px;border-left:3px solid #22c55e;line-height:1.5}.good-entry-ai strong{color:#22c55e}.good-entry-del{position:absolute;top:6px;right:6px;background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:4px}.good-entry-del:hover{background:var(--danger);color:#fff}.good-form{padding:8px 12px;border-top:1px solid var(--border)}.good-form textarea,.good-form select,.good-form input{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:inherit;background:var(--input-bg);color:var(--text);outline:none;margin-bottom:4px}.good-form textarea{resize:vertical;min-height:50px}.good-form textarea:focus,.good-form select:focus,.good-form input:focus{border-color:var(--accent)}
 
-/* Memory */
+.tag-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.tag-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;background:var(--hover);border-radius:10px;font-size:10px;color:var(--text)}.tag-chip-del{background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:12px;padding:0 2px;line-height:1}.tag-chip-del:hover{color:var(--danger)}.rv-actions{display:inline-flex;gap:2px;margin-left:4px}.rv-act{background:transparent;border:none;cursor:pointer;font-size:12px;padding:1px 4px;border-radius:3px;color:var(--text-secondary);opacity:0.5;transition:all 0.15s}.review-entry:hover .rv-act,.good-entry:hover .rv-act{opacity:1}.rv-act:hover{background:var(--hover);color:var(--text)}/* Memory */
 .mem-proj{margin:4px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
 .mem-proj-hdr{padding:7px 10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:12px;font-weight:500;background:var(--sidebar-bg)}
 .mem-proj-hdr:hover{background:var(--hover)}
@@ -281,13 +281,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
           <div class="review-list" id="rvList"></div>
           <div class="review-form">
             <textarea id="rvText" placeholder="粘贴有问题的描写..."></textarea>
-            <select id="rvReason" onchange="onRvReason()"><option value="">-- 选择原因 --</option></select>
+            <select id="rvReason" onchange="onRvReason()"><option value="">-- 选择原因 --</option></select><div class="tag-chips" id="rvTagChips"></div>
             <div style="display:flex;gap:4px;margin-bottom:4px">
               <input type="text" id="rvNewReason" placeholder="或输入新原因...">
               <button class="btn-sm" style="padding:5px 10px;font-size:11px" onclick="addRvReason()">+</button>
             </div>
             <div style="display:flex;gap:4px">
-              <button class="btn-sm" id="btnRvAdd" onclick="submitReview()" style="flex:1">📌 记录并分析</button>
+              <button class="btn-sm" id="btnRvAdd" onclick="submitReview()" style="flex:1">📌 记录并分析</button><button class="btn-sm" onclick="editReviewPrompt()" title="编辑分析Prompt" style="padding:5px 8px;font-size:11px">✏️</button>
               <button class="btn-prp" onclick="genNegPrompt()" style="flex:1">🧪 负Prompt</button>
             </div>
           </div>
@@ -301,13 +301,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
           <div class="good-list" id="gvList"></div>
           <div class="good-form">
             <textarea id="gvText" placeholder="粘贴好的描写..."></textarea>
-            <select id="gvReason" onchange="onGvReason()"><option value="">-- 选择标签 --</option></select>
+            <select id="gvReason" onchange="onGvReason()"><option value="">-- 选择标签 --</option></select><div class="tag-chips" id="gvTagChips"></div>
             <div style="display:flex;gap:4px;margin-bottom:4px">
               <input type="text" id="gvNewReason" placeholder="或输入新标签...">
               <button class="btn-sm" style="padding:5px 10px;font-size:11px" onclick="addGvReason()">+</button>
             </div>
             <div style="display:flex;gap:4px">
-              <button class="btn-sm" id="btnGvAdd" onclick="submitGood()" style="flex:1">📌 记录并分析</button>
+              <button class="btn-sm" id="btnGvAdd" onclick="submitGood()" style="flex:1">📌 记录并分析</button><button class="btn-sm" onclick="editGoodPrompt()" title="编辑分析Prompt" style="padding:5px 8px;font-size:11px">✏️</button>
               <button class="btn-prp" onclick="genPosPrompt()" style="flex:1">✨ 正Prompt</button>
             </div>
           </div>
@@ -331,11 +331,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
         <div class="side-sec-hdr collapsed" onclick="toggleSec('backup',this)"><span>💾 信息备份</span><span class="arr">▼</span></div>
         <div class="side-sec-body hidden" id="secBackup">
           <div class="pad" style="display:flex;flex-direction:column;gap:8px">
-            <p style="font-size:11px;color:var(--text-secondary);line-height:1.5">导出快捷提示词、低级作家、高级作家、长期记忆的数据为 JSON 文件，或从文件导入恢复。</p>
+            <p style="font-size:11px;color:var(--text-secondary);line-height:1.5">导出快捷提示词、低级作家、高级作家、长期记忆的数据。可保存为本地文件或同步至 Gitee 云端仓库。</p>
+            <div style="display:flex;gap:4px;margin-bottom:2px">
+              <span style="font-size:11px;color:var(--text-secondary);font-weight:600">💻 本地</span>
+            </div>
             <div style="display:flex;gap:6px">
-              <button class="btn-sm" onclick="exportData()" style="flex:1">📤 导出</button>
-              <button class="btn-sm" onclick="document.getElementById('importFile').click()" style="flex:1">📥 导入</button>
+              <button class="btn-sm" onclick="exportData()" style="flex:1">📤 导出到本地</button>
+              <button class="btn-sm" onclick="document.getElementById('importFile').click()" style="flex:1">📥 从本地导入</button>
               <input type="file" id="importFile" accept=".json" onchange="importData(event)" style="display:none">
+            </div>
+            <div style="display:flex;gap:4px;margin-bottom:2px;margin-top:4px">
+              <span style="font-size:11px;color:var(--text-secondary);font-weight:600">☁️ 云端 (Gitee)</span>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="btn-sm" onclick="cloudExport()" style="flex:1">📤 备份至云端</button>
+              <button class="btn-sm" onclick="cloudImport()" style="flex:1">📥 从云端恢复</button>
             </div>
             <div id="backupStatus" style="font-size:11px;color:var(--text-secondary)"></div>
           </div>
@@ -368,7 +378,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
       </div>
       <div>
         <button class="icn-btn" onclick="toggleTheme()" id="themeBtn">🌙</button>
-        <span class="token-info" id="tokenInfo" style="margin-right:6px"></span><span style="display:flex;gap:2px;margin-right:4px" id="syncBtns"><button class="icn-btn" onclick="syncPull()" title="工程下载 (Git Pull)">⬇️</button><button class="icn-btn" onclick="syncPush()" title="工程上传 (Git Push)">⬆️</button><span style="border-left:1px solid var(--border);margin:0 2px"></span><button class="icn-btn" onclick="syncDataUpload()" title="应用上传 (数据)">📤</button><button class="icn-btn" onclick="syncDataDownload()" title="应用下载 (数据)">📥</button></span>
+        <span class="token-info" id="tokenInfo" style="margin-right:6px"></span><button class="icn-btn" onclick="publishApp()" title="发布到云端 (GitHub → Render)" style="margin-right:6px;background:linear-gradient(135deg,#4f6ef7,#a855f7);color:#fff;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:600">🚀 发布</button>
         <button class="icn-btn" onclick="clearConv()">🗑️</button>
       </div>
     </header>
@@ -411,7 +421,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 <script>
 'use strict';
 const SK = 'chatstory_v2';
-let st = { convs:[], activeCid:null, settings:{ apiBaseUrl:'', apiKey:'', modelName:'', maxTokens:4096, maxUnlimited:true, temperature:0.7, systemPrompt:'', availModels:[], giteeToken:'', giteeRepo:'middle000/story_-project', giteeBranch:'main' }, rvEntries:[], rvReasons:[], gvEntries:[], gvReasons:[], qps:[], memories:[], theme:'dark' };
+let st = { convs:[], activeCid:null, settings:{ apiBaseUrl:'', apiKey:'', modelName:'', maxTokens:4096, maxUnlimited:true, temperature:0.7, systemPrompt:'', availModels:[], giteeToken:'', giteeRepo:'middle000/story_-project', giteeBranch:'main', githubToken:'', githubRepo:'dwqop83-alt/chatstory', githubBranch:'main' }, rvEntries:[], rvReasons:[], gvEntries:[], gvReasons:[], qps:[], memories:[], theme:'dark' };
 let streaming = false;
 let attachs = [];
 let _debTimer = null, _saveTimer = null;
@@ -554,11 +564,11 @@ function renderQPs(){
 // ===== REVIEW (低级作家) =====
 function renderRvReasons(){G('rvReason').innerHTML='<option value="">-- 选择原因 --</option>'+st.rvReasons.map(r=>'<option>'+esc(r)+'</option>').join('')}
 function onRvReason(){}
-function addRvReason(){var v=G('rvNewReason').value.trim();if(!v)return;if(!st.rvReasons.includes(v))st.rvReasons.push(v);save();renderRvReasons();G('rvReason').value=v;G('rvNewReason').value=''}
+function addRvReason(){var v=G('rvNewReason').value.trim();if(!v)return;if(!st.rvReasons.includes(v))st.rvReasons.push(v);save();renderRvReasons();G('rvReason').value=v;G('rvNewReason').value=''}function delRvReason(i){st.rvReasons.splice(i,1);save();renderRvReasons();toast('???','success')}function delGvReason(i){st.gvReasons.splice(i,1);save();renderGvReasons();toast('???','success')}
 function renderRVs(){
   var el=G('rvList');
   if(!st.rvEntries.length){el.innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">暂无记录</div>';return}
-  el.innerHTML=[...st.rvEntries].reverse().map(e=>'<div class="review-entry"><button class="review-entry-del" onclick="delRv(\''+e.id+'\')">✕</button><span class="review-entry-num">#'+e.num+'</span> <span class="review-entry-date">'+new Date(e.date).toLocaleString('zh-CN')+'</span><div class="review-entry-text">'+esc(e.text.slice(0,300))+(e.text.length>300?'...':'')+'</div><div class="review-entry-reason"><strong>原因：</strong>'+esc(e.reason)+'</div><div class="review-entry-ai"><strong>🤖 AI分析：</strong><br>'+esc(e.aiAnalysis)+'</div></div>').join('');
+  el.innerHTML=[...st.rvEntries].reverse().map(e=>'<div class="review-entry"><button class="review-entry-del" onclick="delRv(\''+e.id+'\')">✕</button><span class="review-entry-num">#'+e.num+'</span> <span class="review-entry-date">'+new Date(e.date).toLocaleString('zh-CN')+'</span><div class="review-entry-text">'+esc(e.text.slice(0,300))+(e.text.length>300?'...':'')+'</div><div class="review-entry-reason"><strong>原因：</strong>'+esc(e.reason)+'</div><div class="review-entry-ai"><strong>🤖 AI分析：</strong> <span class="rv-actions"><button class="rv-act" onclick="redoRvAI(\''+e.id+'\')" title="重新分析">🔄</button><button class="rv-act" onclick="editRvAI(\''+e.id+'\')" title="编辑">✏️</button></span><br><span id="rvai-'+e.id+'">'+esc(e.aiAnalysis)+'</span></div></div>').join('');
 }
 function delRv(id){if(!confirm('删除？'))return;st.rvEntries=st.rvEntries.filter(e=>e.id!==id);st.rvEntries.forEach((e,i)=>e.num=i+1);save();renderRVs();updateRvBadge()}
 function updateRvBadge(){var n=st.rvEntries.length;var b=G('rvBadge');b.textContent=n;b.style.display=n>0?'':'none'}
@@ -571,14 +581,60 @@ async function submitReview(){
   var ai='';
   try{ai=await callAI(text,reason)}catch(e){ai='(失败: '+e.message+')'}
   st.rvEntries.push({id:Date.now().toString(36),num:st.rvEntries.length+1,text,reason,date:new Date().toISOString(),aiAnalysis:ai});
-  G('rvText').value=''; G('rvReason').value=''; save(); renderRVs(); updateRvBadge(); renderRvReasons();
+  G('rvText').value=''; G('rvReason').value=''; save(); renderRVs(); updateRvBadge(); renderRvReasons(); renderRvReasons();
   btn.disabled=false; btn.textContent='📌 记录并分析'; toast('已记录','success');
 }
 async function callAI(text,reason){
   var s=st.settings; if(!s.apiBaseUrl||!s.apiKey)throw new Error('未配置API');
-  var r=await fetch(s.apiBaseUrl.replace(/\/+$/,'')+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.apiKey},body:JSON.stringify({model:s.modelName,messages:[{role:'system',content:'你是审核助手'},{role:'user',content:'标记内容："""'+text.slice(0,500)+'"""\n问题：'+reason+'\n总结一条负向规则（不应做的事），只输出规则'}],max_tokens:200,temperature:0.3})});
+  var def='标记内容："""{text}"""\n问题：{reason}\n总结一条负向规则（不应做的事），只输出规则';
+  var up=(s.reviewUserPrompt||def).replace('{text}',text.slice(0,500)).replace('{reason}',reason);
+  var r=await fetch(s.apiBaseUrl.replace(/\/+$/,'')+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.apiKey},body:JSON.stringify({model:s.modelName,messages:[{role:'system',content:'你是审核助手'},{role:'user',content:up}],max_tokens:200,temperature:0.3})});
   if(!r.ok){var t=await r.text(); var m=t; try{m=JSON.parse(t).error?.message||t}catch(_){} throw new Error(m)}
   var d=await r.json(); return d.choices?.[0]?.message?.content?.trim()||'(无结果)';
+}
+function editReviewPrompt(){
+  var def='标记内容："""{text}"""\n问题：{reason}\n总结一条负向规则（不应做的事），只输出规则';
+  var current=st.settings.reviewUserPrompt||def;
+  var v=prompt('编辑低级作家分析 Prompt（{text}和{reason}会被替换）:',current);
+  if(v===null)return;
+  if(!v.trim()||v===def){st.settings.reviewUserPrompt=''}else{st.settings.reviewUserPrompt=v}
+  save(); toast('Prompt已更新','success');
+}
+function editGoodPrompt(){
+  var def='优秀描写："""{text}"""\n标签：{reason}\n总结一条正向规则（应该效仿的技巧），只输出规则';
+  var current=st.settings.goodUserPrompt||def;
+  var v=prompt('编辑高级作家分析 Prompt（{text}和{reason}会被替换）:',current);
+  if(v===null)return;
+  if(!v.trim()||v===def){st.settings.goodUserPrompt=''}else{st.settings.goodUserPrompt=v}
+  save(); toast('Prompt已更新','success');
+}
+async function redoRvAI(id){
+  var e=st.rvEntries.find(function(x){return x.id===id}); if(!e)return;
+  var el=document.getElementById('rvai-'+id); if(!el)return;
+  el.textContent='⏳ 重新分析中...';
+  try{var ai=await callAI(e.text,e.reason); e.aiAnalysis=ai; save(); el.textContent=ai; toast('已重新分析','success')}
+  catch(err){el.textContent=e.aiAnalysis; toast('分析失败','error')}
+}
+function editRvAI(id){
+  var e=st.rvEntries.find(function(x){return x.id===id}); if(!e)return;
+  var v=prompt('编辑AI分析结果:',e.aiAnalysis); if(v===null)return;
+  e.aiAnalysis=v; save();
+  var el=document.getElementById('rvai-'+id); if(el) el.textContent=v;
+  toast('已更新','success');
+}
+async function redoGvAI(id){
+  var e=st.gvEntries.find(function(x){return x.id===id}); if(!e)return;
+  var el=document.getElementById('gvai-'+id); if(!el)return;
+  el.textContent='⏳ 重新分析中...';
+  try{var ai=await callGoodAI(e.text,e.reason); e.aiAnalysis=ai; save(); el.textContent=ai; toast('已重新分析','success')}
+  catch(err){el.textContent=e.aiAnalysis; toast('分析失败','error')}
+}
+function editGvAI(id){
+  var e=st.gvEntries.find(function(x){return x.id===id}); if(!e)return;
+  var v=prompt('编辑AI分析结果:',e.aiAnalysis); if(v===null)return;
+  e.aiAnalysis=v; save();
+  var el=document.getElementById('gvai-'+id); if(el) el.textContent=v;
+  toast('已更新','success');
 }
 function genNegPrompt(){
   if(!st.rvEntries.length){toast('无记录','error');return}
@@ -596,7 +652,7 @@ function addGvReason(){var v=G('gvNewReason').value.trim();if(!v)return;if(!st.g
 function renderGVs(){
   var el=G('gvList');
   if(!st.gvEntries.length){el.innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">暂无记录</div>';return}
-  el.innerHTML=[...st.gvEntries].reverse().map(e=>'<div class="good-entry"><button class="good-entry-del" onclick="delGv(\''+e.id+'\')">✕</button><span class="good-entry-num">#'+e.num+'</span> <span class="good-entry-date">'+new Date(e.date).toLocaleString('zh-CN')+'</span><div class="good-entry-text">'+esc(e.text.slice(0,300))+(e.text.length>300?'...':'')+'</div><div class="good-entry-reason"><strong>标签：</strong>'+esc(e.reason)+'</div><div class="good-entry-ai"><strong>🤖 AI分析：</strong><br>'+esc(e.aiAnalysis)+'</div></div>').join('');
+  el.innerHTML=[...st.gvEntries].reverse().map(e=>'<div class="good-entry"><button class="good-entry-del" onclick="delGv(\''+e.id+'\')">✕</button><span class="good-entry-num">#'+e.num+'</span> <span class="good-entry-date">'+new Date(e.date).toLocaleString('zh-CN')+'</span><div class="good-entry-text">'+esc(e.text.slice(0,300))+(e.text.length>300?'...':'')+'</div><div class="good-entry-reason"><strong>标签：</strong>'+esc(e.reason)+'</div><div class="good-entry-ai"><strong>🤖 AI分析：</strong> <span class="rv-actions"><button class="rv-act" onclick="redoGvAI(\''+e.id+'\')" title="重新分析">🔄</button><button class="rv-act" onclick="editGvAI(\''+e.id+'\')" title="编辑">✏️</button></span><br><span id="gvai-'+e.id+'">'+esc(e.aiAnalysis)+'</span></div></div>').join('');
 }
 function delGv(id){if(!confirm('删除？'))return;st.gvEntries=st.gvEntries.filter(e=>e.id!==id);st.gvEntries.forEach((e,i)=>e.num=i+1);save();renderGVs();updateGvBadge()}
 function updateGvBadge(){var n=st.gvEntries.length;var b=G('gvBadge');b.textContent=n;b.style.display=n>0?'':'none'}
@@ -609,12 +665,14 @@ async function submitGood(){
   var ai='';
   try{ai=await callGoodAI(text,reason)}catch(e){ai='(失败: '+e.message+')'}
   st.gvEntries.push({id:Date.now().toString(36),num:st.gvEntries.length+1,text,reason,date:new Date().toISOString(),aiAnalysis:ai});
-  G('gvText').value=''; G('gvReason').value=''; save(); renderGVs(); updateGvBadge(); renderGvReasons();
+  G('gvText').value=''; G('gvReason').value=''; save(); renderGVs(); updateGvBadge(); renderGvReasons(); renderGvReasons();
   btn.disabled=false; btn.textContent='📌 记录并分析'; toast('已记录','success');
 }
 async function callGoodAI(text,reason){
   var s=st.settings; if(!s.apiBaseUrl||!s.apiKey)throw new Error('未配置API');
-  var r=await fetch(s.apiBaseUrl.replace(/\/+$/,'')+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.apiKey},body:JSON.stringify({model:s.modelName,messages:[{role:'system',content:'你是写作点评助手'},{role:'user',content:'优秀描写："""'+text.slice(0,500)+'"""\n标签：'+reason+'\n总结一条正向规则（应该效仿的技巧），只输出规则'}],max_tokens:200,temperature:0.3})});
+  var def='优秀描写："""{text}"""\n标签：{reason}\n总结一条正向规则（应该效仿的技巧），只输出规则';
+  var up=(s.goodUserPrompt||def).replace('{text}',text.slice(0,500)).replace('{reason}',reason);
+  var r=await fetch(s.apiBaseUrl.replace(/\/+$/,'')+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.apiKey},body:JSON.stringify({model:s.modelName,messages:[{role:'system',content:'你是写作点评助手'},{role:'user',content:up}],max_tokens:200,temperature:0.3})});
   if(!r.ok){var t=await r.text(); var m=t; try{m=JSON.parse(t).error?.message||t}catch(_){} throw new Error(m)}
   var d=await r.json(); return d.choices?.[0]?.message?.content?.trim()||'(无结果)';
 }
@@ -696,6 +754,35 @@ function flagToReview(){
 }
 function flagMsg(e,i){e.stopPropagation();var c=getActive();if(!c)return;var m=c.msgs[i];if(!m||m.role!=='assistant')return;G('rvText').value=m.content;jumpTo('review')}
 
+
+// ===== PUBLISH (GitHub + Render) =====
+async function publishApp(){
+  var s=st.settings;
+  if(!s.githubToken||!s.githubRepo){toast('请先在设置中配置 GitHub Token 和仓库','error');return}
+  var msg=prompt('发布说明:','发布更新 '+new Date().toLocaleString('zh-CN'));
+  if(msg===null)return;
+  var btn=document.querySelector('[onclick="publishApp()"]');
+  if(!btn) return;
+  var origText=btn.textContent; btn.textContent='⏳ 发布中...'; btn.disabled=true;
+  try{
+    var r=await fetch('/api/git/push',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:msg,token:s.githubToken,repo:s.githubRepo,branch:s.githubBranch||'main'})
+    });
+    var d=await r.json();
+    if(d.push&&d.push.ok){
+      toast('已发布！Render 正在自动部署...','success');
+      setTimeout(function(){alert('发布成功！公网地址：https://chatstory.onrender.com\n\nRender 将在1-2分钟内完成部署。')},500);
+    }else if(d.commit&&d.commit.output&&(d.commit.output.indexOf('nothing to commit')>=0)){
+      toast('没有变更需要发布','success');
+    }else{
+      var err=(d.push?d.push.error:(d.commit?d.commit.error:'未知错误'));
+      toast('发布失败: '+err,'error');
+    }
+  }catch(e){toast('发布失败: '+e.message,'error')}
+  btn.textContent=origText; btn.disabled=false;
+}
 // ===== GITEE SYNC =====
 async function syncPull(){if(!confirm('工程下载：从 Gitee 拉取最新代码？')) return;
   try{
@@ -743,6 +830,90 @@ async function syncDataDownload(){
       toast('应用数据已恢复','success');
     }else{toast('无可用数据','error')}
   }catch(e){toast('下载失败: '+e.message,'error')}
+}
+
+// ===== CLOUD BACKUP =====
+async function cloudExport(){
+  var s = st.settings;
+  if(!s.giteeToken || !s.giteeRepo){toast('请先在设置中配置 Gitee Token 和仓库','error');return}
+  var status = G('backupStatus');
+  status.textContent = '⏳ 正在备份至云端...';
+  var data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    quickPrompts: st.qps,
+    reviewEntries: st.rvEntries,
+    reviewReasons: st.rvReasons,
+    goodEntries: st.gvEntries,
+    goodReasons: st.gvReasons,
+    memories: st.memories
+  };
+  try {
+    var r = await fetch('/api/data/upload', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    });
+    var result = await r.json();
+    if (result.error) throw new Error(result.error);
+    // Also push to remote
+    var pushR = await fetch('/api/git/push', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({branch:s.giteeBranch||'main', message:'Backup: '+new Date().toLocaleString('zh-CN'), token:s.giteeToken, repo:s.giteeRepo})
+    });
+    var pushResult = await pushR.json();
+    status.textContent = '✅ 已备份至云端: '+new Date().toLocaleString('zh-CN');
+    toast('已备份至云端','success');
+  } catch(e) {
+    status.textContent = '❌ 备份失败: '+e.message;
+    toast('备份失败: '+e.message,'error');
+  }
+}
+
+async function cloudImport(){
+  var s = st.settings;
+  if(!s.giteeToken || !s.giteeRepo){toast('请先在设置中配置 Gitee Token 和仓库','error');return}
+  var status = G('backupStatus');
+  status.textContent = '⏳ 正在从云端拉取...';
+  try {
+    // Pull first
+    await fetch('/api/git/pull', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({branch:s.giteeBranch||'main', token:s.giteeToken, repo:s.giteeRepo})
+    });
+    // Download data
+    var r = await fetch('/api/data/download');
+    var data = await r.json();
+    if (data.error) throw new Error(data.error);
+    if (!data.version){toast('云端暂无备份数据','error'); status.textContent='❌ 云端暂无备份数据';return}
+    
+    var merged = 0;
+    // Quick prompts
+    if(data.quickPrompts){for(var q of data.quickPrompts){if(!st.qps.find(function(x){return x.content===q.content})){st.qps.push(q);merged++}}}
+    // Review reasons
+    if(data.reviewReasons){for(var rr of data.reviewReasons){if(!st.rvReasons.includes(rr)){st.rvReasons.push(rr);merged++}}}
+    // Review entries
+    if(data.reviewEntries){for(var r of data.reviewEntries){if(!st.rvEntries.find(function(x){return x.text===r.text})){st.rvEntries.push(r);merged++}}}
+    // Good reasons
+    if(data.goodReasons){for(var gr of data.goodReasons){if(!st.gvReasons.includes(gr)){st.gvReasons.push(gr);merged++}}}
+    // Good entries
+    if(data.goodEntries){for(var g of data.goodEntries){if(!st.gvEntries.find(function(x){return x.text===g.text})){st.gvEntries.push(g);merged++}}}
+    // Memories
+    if(data.memories){for(var mp of data.memories){var ex=st.memories.find(function(x){return x.name===mp.name});if(ex){for(var mi of mp.items){if(!ex.items.find(function(x){return x.content===mi.content})){ex.items.push(mi);merged++}}}else{st.memories.push(mp);merged++}}}
+    
+    save();
+    status.textContent = '✅ 已从云端恢复 '+merged+' 条数据';
+    toast('已从云端恢复 '+merged+' 条数据','success');
+    
+    // Refresh views
+    renderQPs(); renderRVs(); updateRvBadge(); renderRvReasons();
+    renderGVs(); updateGvBadge(); renderGvReasons(); renderMems();
+  } catch(e) {
+    status.textContent = '❌ 恢复失败: '+e.message;
+    toast('恢复失败: '+e.message,'error');
+  }
 }
 // ===== BACKUP (信息备份) =====
 function exportData(){
@@ -908,7 +1079,7 @@ async function regenerateResponse(ai){
   var apiMsgs=[];
   var sys=s.systemPrompt||'';
   var memLines=[];
-  for(var p of st.memories){for(var j of p.items)memLines.push('['+p.name+'] '+p.items[j].content)}
+  for(var p of st.memories){for(var j of p.items)memLines.push('['+p.name+'] '+j.content)}
   if(memLines.length)sys=(sys?sys+'\n\n':'')+'# 长期记忆\n'+memLines.map(function(m){return'- '+m}).join('\n');
   if(sys)apiMsgs.push({role:'system',content:sys});
   for(var k=0;k<=ai;k++){var m=c.msgs[k];if(k===ai)continue;apiMsgs.push({role:m.role,content:Array.isArray(m.content)?m.content.map(function(p){return p.type==='text'?p.text:''}).join(' '):m.content})}
@@ -1160,6 +1331,26 @@ updateRvBadge();
       </div>
     </div>
   </div>
+  <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+    <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:8px">🚀 GitHub 发布配置</label>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <div style="flex:1">
+        <label style="font-size:11px;color:var(--text-secondary);display:block;margin-bottom:2px">Access Token</label>
+        <input type="password" id="modalGithubToken" placeholder="ghp_..." style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:var(--input-bg);color:var(--text);outline:none">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div style="flex:2">
+        <label style="font-size:11px;color:var(--text-secondary);display:block;margin-bottom:2px">仓库路径</label>
+        <input type="text" id="modalGithubRepo" placeholder="用户名/仓库名" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:var(--input-bg);color:var(--text);outline:none">
+      </div>
+      <div style="flex:1">
+        <label style="font-size:11px;color:var(--text-secondary);display:block;margin-bottom:2px">分支</label>
+        <input type="text" id="modalGithubBranch" placeholder="main" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:var(--input-bg);color:var(--text);outline:none">
+      </div>
+    </div>
+  </div>
+
     <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;margin-bottom:12px">
       <input type="checkbox" id="modalUnlimited" onchange="document.getElementById('modalMaxTokens').disabled=this.checked"> 不限制 Tokens
     </label>
