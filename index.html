@@ -758,7 +758,7 @@ function flagMsg(e,i){e.stopPropagation();var c=getActive();if(!c)return;var m=c
 // ===== PUBLISH (GitHub + Render) =====
 async function publishApp(){
   var s=st.settings;
-  if(!s.githubToken||!s.githubRepo){toast('请先在设置中配置 GitHub Token 和仓库','error');return}
+  if(!s.giteeToken||!s.giteeRepo){toast('请先在设置中配置 Gitee Token 和仓库','error');return}
   var msg=prompt('发布说明:','发布更新 '+new Date().toLocaleString('zh-CN'));
   if(msg===null)return;
   var btn=document.querySelector('[onclick="publishApp()"]');
@@ -768,12 +768,12 @@ async function publishApp(){
     var r=await fetch('/api/git/push',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:msg,token:s.githubToken,repo:s.githubRepo,branch:s.githubBranch||'main',platform:'github'})
+      body:JSON.stringify({message:msg,token:s.giteeToken,repo:s.giteeRepo,branch:s.giteeBranch||'main'})
     });
     var d=await r.json();
     if(d.push&&d.push.ok){
       toast('已发布！Render 正在自动部署...','success');
-      setTimeout(function(){alert('发布成功！公网地址：https://chatstory.onrender.com\n\nRender 将在1-2分钟内完成部署。')},500);
+      setTimeout(function(){alert('已推送到 Gitee！\n\n仓库地址：https://gitee.com/'+s.giteeRepo+'\n\n如需云端访问，可使用内网穿透或 Render 部署。')},500);
     }else if(d.commit&&d.commit.output&&(d.commit.output.indexOf('nothing to commit')>=0)){
       toast('没有变更需要发布','success');
     }else{
