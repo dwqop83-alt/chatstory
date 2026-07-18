@@ -883,13 +883,14 @@ function showProgress(title){
   var el=G('pubProgress');
   if(!el){
     el=document.createElement('div');el.id='pubProgress';el.className='pub-progress';
-    el.innerHTML='<div class="pub-progress-text" id="pubTitle"></div><div class="pub-progress-bar"><div class="pub-progress-fill" id="pubFill"></div></div><div class="pub-progress-step" id="pubStep"></div>';
+    el.innerHTML='<div class="pub-progress-text" id="pubTitle"></div><div class="pub-progress-bar"><div class="pub-progress-fill" id="pubFill"></div></div><div class="pub-progress-step" id="pubStep"></div><button id="pubCancelBtn" onclick="cancelProgress()" style="margin-top:12px;padding:6px 20px;background:#555;color:#ccc;border:none;border-radius:6px;cursor:pointer;font-size:12px">✕ 取消</button>';
     document.body.appendChild(el);
   }
   G('pubTitle').textContent=title;
   G('pubFill').style.width='0%';
   G('pubFill').style.background='linear-gradient(90deg,#4f6ef7,#a855f7)';
   G('pubStep').textContent='';
+  var cb=G('pubCancelBtn');if(cb)cb.style.display='';
   el.style.display='';
 }
 function updateProgress(pct,step){
@@ -923,11 +924,14 @@ async function doCloudExport(){
   };
   try{
     updateProgress(30,'⏳ 上传数据...');
-    var r=await fetch('/api/data/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    _abortController=new AbortController();
+    var toId=setTimeout(function(){_abortController.abort()},30000);
+    var r=await fetch('/api/data/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),signal:_abortController.signal});
+    clearTimeout(toId);
     var result=await r.json();
     if(result.error)throw new Error(result.error);
     updateProgress(70,'⏳ 推送到 Gitee...');
-    await fetch('/api/git/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({branch:s.giteeBranch||'main',message:'Backup: '+new Date().toLocaleString('zh-CN'),token:s.giteeToken,repo:s.giteeRepo})});
+    await fetch('/api/git/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({branch:s.giteeBranch||'main',message:'Backup: '+new Date().toLocaleString('zh-CN'),token:s.giteeToken,repo:s.giteeRepo}),signal:_abortController.signal});
     updateProgress(100,'✅ 备份完成！'+data.conversations.length+'个对话');
     var url='https://gitee.com/'+s.giteeRepo+'/blob/'+(s.giteeBranch||'main')+'/app-data.json';
     setTimeout(function(){alert('✅ 备份成功！\n\n文件地址：\n'+url)},800);
@@ -937,9 +941,18 @@ async function doCloudExport(){
     updateProgress(100,'❌ 失败: '+e.message);
     G('pubFill').style.background='#e05555';
     sts.textContent='❌ 失败: '+e.message;
+    _abortController=null;
     toast('备份失败','error');
   }
+  _abortController=null;
   hideProgress(2000);
+}
+
+var _abortController=null;
+function cancelProgress(){
+  if(_abortController){_abortController.abort();_abortController=null;}
+  var el=G('pubProgress');if(el)el.style.display='none';
+  toast('已取消','info');
 }
 
 async function cloudImport(){
@@ -949,9 +962,12 @@ async function cloudImport(){
   showProgress('☁️ 正在从云端恢复...');
   updateProgress(15,'⏳ 拉取数据...');
   try{
-    await fetch('/api/git/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({branch:s.giteeBranch||'main',token:s.giteeToken,repo:s.giteeRepo})});
+    _abortController=new AbortController();
+    var timeoutId=setTimeout(function(){_abortController.abort()},30000);
+    await fetch('/api/git/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({branch:s.giteeBranch||'main',token:s.giteeToken,repo:s.giteeRepo}),signal:_abortController.signal});
+    clearTimeout(timeoutId);
     updateProgress(40,'⏳ 下载数据...');
-    var r=await fetch('/api/data/download');
+    var r=await fetch('/api/data/download',{signal:_abortController.signal});
     var data=await r.json();
     if(data.error)throw new Error(data.error);
     if(!data.version){
@@ -988,6 +1004,7 @@ async function cloudImport(){
     sts.textContent='❌ 失败: '+e.message;
     toast('恢复失败','error');
   }
+  _abortController=null;
   hideProgress(2000);
 }
 
