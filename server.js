@@ -210,6 +210,9 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+process.on('uncaughtException', function(err) { console.error('Uncaught:', err.message); });
+process.on('unhandledRejection', function(err) { console.error('Unhandled:', err.message); });
+server.on('error', function(err) { console.error('Server error:', err.message); });
 server.listen(PORT, '0.0.0.0', () => {
   console.log('ChatStory Server: http://localhost:' + PORT);
   const s = git('status --porcelain');
