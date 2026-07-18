@@ -50,7 +50,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .side-sec-hdr:hover{background:var(--hover)}
 .side-sec-hdr .arr{font-size:10px;transition:transform 0.2s;display:inline-block}
 .side-sec-hdr.collapsed .arr{transform:rotate(-90deg)}
-.side-sec-hdr .badge{background:var(--danger);color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px}#gvBadge{background:none;color:inherit;padding:0;font-weight:600}
+.side-sec-hdr .badge{background:var(--danger);color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px}#rvBadge{background:none;color:inherit;padding:0;font-weight:600}#gvBadge{background:none;color:inherit;padding:0;font-weight:600}
 .side-sec-body{overflow:hidden}
 .side-sec-body.hidden{display:none}
 .side-sec-body .pad{padding:8px 12px}
@@ -376,10 +376,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
         </div>
         <span id="chatTitle" style="font-size:14px;font-weight:500">新对话</span>
       </div>
-      <div>
-        <button class="icn-btn" onclick="toggleTheme()" id="themeBtn">🌙</button>
-        <span class="token-info" id="tokenInfo" style="margin-right:6px"></span><button class="icn-btn" onclick="publishApp()" title="发布到云端 (GitHub → Render)" style="margin-right:6px;background:linear-gradient(135deg,#4f6ef7,#a855f7);color:#fff;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:600">🚀 发布</button>
-        <button class="icn-btn" onclick="clearConv()">🗑️</button>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span class="token-info" id="tokenInfo" style="margin-right:6px"></span>
+        <button class="icn-btn" onclick="toggleTheme()" id="themeBtn" title="切换主题">🌙</button><button class="icn-btn" onclick="publishApp()" title="发布到云端">🚀</button>
+        <button class="icn-btn" onclick="clearConv()" title="清空对话">🗑️</button>
       </div>
     </header>
     <div class="messages" id="msgs">
@@ -421,7 +421,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 <script>
 'use strict';
 const SK = 'chatstory_v2';
-let st = { version:0, convs:[], activeCid:null, settings:{ apiBaseUrl:'', apiKey:'', modelName:'', maxTokens:4096, maxUnlimited:true, temperature:0.7, systemPrompt:'', availModels:[], giteeToken:'', giteeRepo:'middle000/story_-project', giteeBranch:'main', githubToken:'', githubRepo:'dwqop83-alt/chatstory', githubBranch:'main' }, rvEntries:[], rvReasons:[], gvEntries:[], gvReasons:[], qps:[], memories:[], theme:'dark' };
+let st = { version:0, convs:[], activeCid:null, settings:{ apiBaseUrl:'', apiKey:'', modelName:'', maxTokens:4096, maxUnlimited:true, temperature:0.7, systemPrompt:'', availModels:[], giteeToken:'', giteeRepo:'', giteeBranch:'main', githubToken:'', githubRepo:'', githubBranch:'main' }, rvEntries:[], rvReasons:[], gvEntries:[], gvReasons:[], qps:[], memories:[], theme:'dark' };
 let streaming = false;
 let attachs = [];
 let _debTimer = null, _saveTimer = null;
@@ -755,56 +755,45 @@ function flagToReview(){
 function flagMsg(e,i){e.stopPropagation();var c=getActive();if(!c)return;var m=c.msgs[i];if(!m||m.role!=='assistant')return;G('rvText').value=m.content;jumpTo('review')}
 
 
-// ===== PUBLISH (Gitee) =====
+// ===== PUBLISH (GitHub API) =====
 async function publishApp(){
   var s=st.settings;
-  if(!s.giteeToken||!s.giteeRepo){toast('请先在设置中配置 Gitee Token 和仓库','error');return}
+  if(!s.githubToken||!s.githubRepo){toast('请先配置 GitHub Token 和仓库','error');return}
   var msg=prompt('发布说明:','发布更新 '+new Date().toLocaleString('zh-CN'));
   if(msg===null)return;
   var btn=document.querySelector('[onclick="publishApp()"]');
   if(!btn) return;
-  var origHTML=btn.innerHTML; 
-  function setStatus(txt){btn.innerHTML=txt;}
-  btn.disabled=true;
+  var origHTML=btn.innerHTML;
+  btn.style.pointerEvents='none';
+  btn.innerHTML='⏳ 连接 GitHub...';
   try{
-    setStatus('⏳ 暂存中...');
-    var r1=await fetch('/api/git/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
-    var d1=await r1.json();
-    if(!d1.ok){throw new Error(d1.error||'暂存失败')}
-    
-    setStatus('⏳ 提交中...');
-    var r2=await fetch('/api/git/commit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
-    var d2=await r2.json();
-    if(!d2.ok&&!(d2.output||'').includes('nothing to commit')){throw new Error(d2.error||'提交失败')}
-    
-    setStatus('⏳ 推送中...');
-    var r3=await fetch('/api/git/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,token:s.giteeToken,repo:s.giteeRepo,branch:s.giteeBranch||'main'})});
-    var d3=await r3.json();
-    
-    if(d3.push&&d3.push.ok){
+    var t0=Date.now();
+    var r=await fetch('/api/github/push',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:msg,token:s.githubToken,repo:s.githubRepo,branch:s.githubBranch||'main'})
+    });
+    var d=await r.json();
+    var elapsed=((Date.now()-t0)/1000).toFixed(1);
+    if(d.ok){
       st.version=(st.version||0)+1; save(); updateVersion();
-      setStatus('✅ 已发布 v'+st.version);
-      toast('已发布 v'+st.version,'success');
-      setTimeout(function(){btn.innerHTML=origHTML; btn.disabled=false},2000);
-    }else if(d3.commit&&d3.commit.output&&(d3.commit.output.indexOf('nothing to commit')>=0)){
-      setStatus('✅ 无变更');
-      toast('没有变更需要发布','success');
-      setTimeout(function(){btn.innerHTML=origHTML; btn.disabled=false},2000);
+      btn.innerHTML='✅ 已发布 v'+st.version+' ('+elapsed+'s)';
+      btn.style.pointerEvents='auto';
+      toast('✅ '+d.pushed+' 文件已发布 ('+elapsed+'s)','success');
+      setTimeout(function(){btn.innerHTML=origHTML},3000);
     }else{
-      var err=(d3.push?d3.push.error:(d3.commit?d3.commit.error:'未知错误'));
-      setStatus('❌ 失败');
-      toast('发布失败: '+err,'error');
-      btn.innerHTML=origHTML; btn.disabled=false;
+      btn.innerHTML='❌ 失败 ('+elapsed+'s)';
+      btn.style.pointerEvents='auto';
+      var detail=d.results?d.results.filter(function(x){return x.status==='error'}).map(function(x){return x.file}).join(', '):'';
+      toast('❌ '+d.failed+'/'+(d.pushed+d.failed)+' 文件失败: '+detail,'error');
+      setTimeout(function(){btn.innerHTML=origHTML},3000);
     }
   }catch(e){
-    setStatus('❌ 失败');
-    toast('发布失败: '+e.message,'error');
-    btn.innerHTML=origHTML; btn.disabled=false;
+    btn.innerHTML='❌ 网络错误';
+    btn.style.pointerEvents='auto';
+    toast('❌ '+e.message,'error');
+    setTimeout(function(){btn.innerHTML=origHTML},3000);
   }
-}
-function updateVersion(){
-  var el=document.getElementById('appVersion');
-  if(el) el.textContent='v'+(st.version||0);
 }
 // ===== GITEE SYNC =====
 async function syncPull(){if(!confirm('工程下载：从 Gitee 拉取最新代码？')) return;
@@ -1237,6 +1226,9 @@ function openSettings(){
   G('modalGiteeToken').value=s.giteeToken||'';
   G('modalGiteeRepo').value=s.giteeRepo||'';
   G('modalGiteeBranch').value=s.giteeBranch||'main';
+  G('modalGithubToken').value=s.githubToken||'';
+  G('modalGithubRepo').value=s.githubRepo||'';
+  G('modalGithubBranch').value=s.githubBranch||'main';
   G('settingsModal').classList.add('show');
 }
 function closeSettings(){G('settingsModal').classList.remove('show')}
@@ -1258,6 +1250,9 @@ function saveModalSettings(){
   st.settings.giteeToken=G('modalGiteeToken').value.trim();
   st.settings.giteeRepo=G('modalGiteeRepo').value.trim();
   st.settings.giteeBranch=G('modalGiteeBranch').value.trim()||'main';
+  st.settings.githubToken=G('modalGithubToken').value.trim();
+  st.settings.githubRepo=G('modalGithubRepo').value.trim();
+  st.settings.githubBranch=G('modalGithubBranch').value.trim()||'main';
   save(); closeSettings(); renderAll(); toast('已保存','success');
 }
 async function fetchModalModels(){

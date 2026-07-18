@@ -171,6 +171,65 @@ const server = http.createServer(async (req, res) => {
       if (token) { git('fetch ' + remote + ' ' + b); push = git('push ' + remote + ' ' + b + ' --force'); }
       return json(res, { add, commit, push });
     }
+
+    // GitHub API Push (direct file push via API)
+    if (apiPath === '/api/github/push' && req.method === 'POST') {
+      const body = await readBody(req);
+      const { token, repo, branch, message } = JSON.parse(body || '{}');
+      if (!token || !repo) return json(res, { error: 'Missing token or repo' }, 400);
+      
+      const files = ['index.html', 'server.js', 'manifest.json', 'sw.js', 'icon-192.png', 'icon-512.png', 'render.yaml', 'Dockerfile', 'server-render.js'];
+      const [owner, repoName] = repo.split('/');
+      const results = [];
+      
+      for (const file of files) {
+        const fpath = path.join(DIR, file);
+        if (!fs.existsSync(fpath)) continue;
+        const content = fs.readFileSync(fpath);
+        const base64 = content.toString('base64');
+        
+        try {
+          // Get current SHA if file exists
+          let sha = null;
+          try {
+            const getRes = await fetch('https://api.github.com/repos/' + owner + '/' + repoName + '/contents/' + file + '?ref=' + (branch||'main'), {
+              headers: { 'Authorization': 'Bearer ' + token, 'User-Agent': 'ChatStory' }
+            });
+            if (getRes.ok) {
+              const data = await getRes.json();
+              sha = data.sha;
+            }
+          } catch(e) {}
+          
+          // Create or update file
+          const body = JSON.stringify({
+            message: message || 'Publish from ChatStory',
+            content: base64,
+            branch: branch || 'main',
+            sha: sha
+          });
+          
+          const putRes = await fetch('https://api.github.com/repos/' + owner + '/' + repoName + '/contents/' + file, {
+            method: 'PUT',
+            headers: { 'Authorization': 'Bearer ' + token, 'User-Agent': 'ChatStory', 'Content-Type': 'application/json' },
+            body: body
+          });
+          
+          if (putRes.ok) {
+            results.push({ file: file, status: 'ok' });
+          } else {
+            const err = await putRes.text();
+            results.push({ file: file, status: 'error', error: err.substring(0,200) });
+          }
+        } catch(e) {
+          results.push({ file: file, status: 'error', error: e.message });
+        }
+      }
+      
+      const ok = results.filter(r=>r.status==='ok').length;
+      const fail = results.filter(r=>r.status==='error').length;
+      return json(res, { ok: fail === 0, pushed: ok, failed: fail, results });
+    }
     // Data Upload
     if (apiPath === '/api/data/upload' && req.method === 'POST') {
       const body = await readBody(req);

@@ -1,9 +1,10 @@
 @echo off
-echo ============================
-echo   ChatStory - PWA Server
-echo ============================
+echo ChatStory Server (auto-restart)
+echo http://localhost:8080
 echo.
-echo Open: http://localhost:8080
-echo.
+:loop
 node server.js
-pause
+echo.
+echo Server stopped, restarting in 3 seconds...
+timeout /t 3 /nobreak >nul
+goto loop
