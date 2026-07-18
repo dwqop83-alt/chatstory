@@ -105,6 +105,14 @@
 <div class="side-sec">
 <div class="side-sec-hdr collapsed" onclick="toggleSec('lorebookList',this)"><span>🌍 世界观数据</span><span class="arr">▼</span></div>
 <div class="side-sec-body hidden" id="secLorebookList">
+<div style="display:flex;flex-direction:column;gap:6px;padding:4px">
+<button class="btn-sm" onclick="compressContext()" style="width:100%;padding:8px;font-size:12px;font-weight:600">🗜️ 压缩上下文</button>
+<div style="display:flex;gap:4px">
+<button class="btn-sm" onclick="openPromptEditor()" style="flex:1;padding:6px;font-size:11px">✏️ 编辑Prompt</button>
+<button class="btn-sm" onclick="openLastLorebook()" style="flex:1;padding:6px;font-size:11px">📖 打开提取结果</button>
+</div>
+</div>
+<div style="border-top:1px solid var(--border);margin:4px 0"></div>
 <div id="lorebookList"><div style="font-size:11px;color:var(--text-secondary);padding:8px;text-align:center">暂无保存的世界观数据</div></div>
 </div>
 </div>
@@ -162,7 +170,7 @@
       <div style="display:flex;align-items:center;gap:4px">
         <span class="token-info" id="tokenInfo" style="margin-right:6px"></span>
         <button class="icn-btn" onclick="toggleTheme()" id="themeBtn" title="切换主题">🌙</button><button class="icn-btn" onclick="publishApp()" title="发布到云端">🚀</button>
-        <button class="icn-btn" id="compressBtn" onclick="compressContext()" title="压缩上下文/提取世界观">🗜️</button><button class="icn-btn" onclick="clearConv()" title="清空对话">🗑️</button>
+        <button class="icn-btn" onclick="clearConv()" title="清空对话">🗑️</button>
       </div>
     </header>
     <div class="messages" id="msgs">
@@ -361,5 +369,20 @@ if('serviceWorker' in navigator) {
     <pre id="rawContent" style="flex:1;overflow:auto;background:#1e1e2e;color:#cdd6f4;padding:14px;border-radius:8px;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-all;max-height:60vh"></pre>
   </div>
 </div>
-</body>
+
+<!-- Prompt Editor Modal -->
+<div class="modal-overlay" id="promptEditorModal" style="display:none" onclick="if(event.target===this)closePromptEditor()">
+<div class="modal" style="max-width:700px;max-height:85vh;overflow-y:auto">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+<div style="font-size:16px;font-weight:700">✏️ 编辑压缩上下文 Prompt</div>
+<button class="btn-sm" onclick="closePromptEditor()" style="padding:4px 10px;font-size:11px;background:#666;color:#fff;border:none;border-radius:4px;cursor:pointer">✕ 关闭</button>
+</div>
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">可用占位符：<code>{{KNOWN_CTX}}</code>=已建立角色 <code>{{USER_MSG}}</code>=用户消息 <code>{{AI_MSG}}</code>=AI回复</div>
+<textarea id="lorePromptEditor" style="width:100%;height:350px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--input-bg);color:var(--text);font-family:monospace;resize:vertical;line-height:1.5"></textarea>
+<div style="display:flex;gap:8px;margin-top:10px">
+<button class="btn-sm" onclick="savePrompt()" style="flex:1;padding:8px;font-size:13px;font-weight:600;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">💾 保存 Prompt</button>
+<button class="btn-sm" onclick="resetPrompt()" style="padding:8px 14px;font-size:12px;background:var(--hover);color:var(--text);border:none;border-radius:6px;cursor:pointer">🔄 恢复默认</button>
+</div>
+</div>
+</div></body>
 </html>
