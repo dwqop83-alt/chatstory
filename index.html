@@ -240,7 +240,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .ctx-menu-item:hover>.ctx-menu-sub{display:block}
 .ctx-menu-sub-item{padding:7px 14px;cursor:pointer;font-size:12px;color:var(--text);white-space:nowrap}
 .ctx-menu-sub-item:hover{background:var(--hover)}
-</style>
+.pub-progress{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--chat-bg);border:1px solid var(--border);border-radius:12px;padding:24px 32px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,0.3);min-width:320px;text-align:center}.pub-progress-bar{width:100%;height:6px;background:var(--hover);border-radius:3px;overflow:hidden;margin:8px 0}.pub-progress-fill{height:100%;background:linear-gradient(90deg,#4f6ef7,#a855f7);border-radius:3px;transition:width 0.5s ease;width:0%}.pub-progress-text{font-size:13px;color:var(--text);margin-bottom:6px}.pub-progress-step{font-size:11px;color:var(--text-secondary)}.backup-conv-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--text)}.backup-conv-item:hover{background:var(--hover)}.backup-conv-item input{margin:0}.backup-conv-select-all{margin-bottom:8px;font-size:11px;color:var(--text-secondary);cursor:pointer;user-select:none}</style>
 </head>
 <body class="dark">
 <div class="app">
@@ -344,7 +344,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
               <span style="font-size:11px;color:var(--text-secondary);font-weight:600">☁️ 云端 (Gitee)</span>
             </div>
             <div style="display:flex;gap:6px">
-              <button class="btn-sm" onclick="cloudExport()" style="flex:1">📤 备份至云端</button>
+              <button class="btn-sm" onclick="showBackupConvModal()" style="flex:1">📤 备份至云端</button>
               <button class="btn-sm" onclick="cloudImport()" style="flex:1">📥 从云端恢复</button>
             </div>
             <div id="backupStatus" style="font-size:11px;color:var(--text-secondary)"></div>
@@ -395,6 +395,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   </main>
 </div>
 
+
+<div class="modal-overlay" id="backupConvModal">
+  <div class="modal" style="max-width:420px">
+    <div style="font-size:15px;font-weight:600;margin-bottom:12px">☁️ 选择要备份的对话</div>
+    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">勾选需要同步到云端的对话（已有数据会自动备份）</div>
+    <div id="backupConvList" style="max-height:300px;overflow-y:auto;margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-sm" style="background:var(--hover);color:var(--text)" onclick="closeBackupConvModal()">跳过</button>
+      <button class="btn-sm" id="btnBackupConfirm" onclick="doCloudExport()">📤 确认备份</button>
+    </div>
+  </div>
+</div>
 <!-- Neg Prompt Modal -->
 <div class="modal-overlay" id="negModal">
   <div class="modal">
@@ -761,12 +773,20 @@ async function publishApp(){
   if(!s.githubToken||!s.githubRepo){toast('请先配置 GitHub Token 和仓库','error');return}
   var msg=prompt('发布说明:','发布更新 '+new Date().toLocaleString('zh-CN'));
   if(msg===null)return;
-  var btn=document.querySelector('[onclick="publishApp()"]');
-  if(!btn) return;
-  var origHTML=btn.innerHTML;
-  btn.style.pointerEvents='none';
-  btn.innerHTML='⏳ 连接 GitHub...';
+  
+  // Create progress overlay
+  var overlay=document.createElement('div');
+  overlay.className='pub-progress';
+  overlay.innerHTML='<div class="pub-progress-text">🚀 正在发布到云端...</div><div class="pub-progress-bar"><div class="pub-progress-fill" id="pubFill"></div></div><div class="pub-progress-step" id="pubStep">⏳ 连接 GitHub...</div>';
+  document.body.appendChild(overlay);
+  
+  function update(pct,step){var f=document.getElementById('pubFill');if(f)f.style.width=pct+'%';var s=document.getElementById('pubStep');if(s)s.textContent=step;}
+  
   try{
+    update(15,'📦 准备文件...');
+    await new Promise(function(r){setTimeout(r,400)});
+    update(40,'📤 上传文件中...');
+    
     var t0=Date.now();
     var r=await fetch('/api/github/push',{
       method:'POST',
@@ -775,24 +795,27 @@ async function publishApp(){
     });
     var d=await r.json();
     var elapsed=((Date.now()-t0)/1000).toFixed(1);
+    
     if(d.ok){
       st.version=(st.version||0)+1; save(); updateVersion();
-      btn.innerHTML='✅ 已发布 v'+st.version+' ('+elapsed+'s)';
-      btn.style.pointerEvents='auto';
-      toast('✅ '+d.pushed+' 文件已发布 ('+elapsed+'s)','success');
-      setTimeout(function(){btn.innerHTML=origHTML},3000);
+      update(100,'✅ 已发布 v'+st.version+' · '+d.pushed+' 文件 · '+elapsed+'s');
+      await new Promise(function(r){setTimeout(r,1500)});
+      overlay.remove();
+      toast('✅ 已发布 v'+st.version+' ('+elapsed+'s)','success');
     }else{
-      btn.innerHTML='❌ 失败 ('+elapsed+'s)';
-      btn.style.pointerEvents='auto';
       var detail=d.results?d.results.filter(function(x){return x.status==='error'}).map(function(x){return x.file}).join(', '):'';
-      toast('❌ '+d.failed+'/'+(d.pushed+d.failed)+' 文件失败: '+detail,'error');
-      setTimeout(function(){btn.innerHTML=origHTML},3000);
+      update(100,'❌ 失败: '+d.failed+'/'+(d.pushed+d.failed)+' 文件出错');
+      document.getElementById('pubFill').style.background='#e05555';
+      await new Promise(function(r){setTimeout(r,2500)});
+      overlay.remove();
+      toast('❌ 发布失败: '+detail,'error');
     }
   }catch(e){
-    btn.innerHTML='❌ 网络错误';
-    btn.style.pointerEvents='auto';
+    update(100,'❌ 网络错误: '+e.message);
+    document.getElementById('pubFill').style.background='#e05555';
+    await new Promise(function(r){setTimeout(r,2500)});
+    overlay.remove();
     toast('❌ '+e.message,'error');
-    setTimeout(function(){btn.innerHTML=origHTML},3000);
   }
 }
 // ===== GITEE SYNC =====
@@ -845,88 +868,93 @@ async function syncDataDownload(){
 }
 
 // ===== CLOUD BACKUP =====
-async function cloudExport(){
-  var s = st.settings;
-  if(!s.giteeToken || !s.giteeRepo){toast('请先在设置中配置 Gitee Token 和仓库','error');return}
-  var status = G('backupStatus');
-  status.textContent = '⏳ 正在备份至云端...';
-  var data = {
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    quickPrompts: st.qps,
-    reviewEntries: st.rvEntries,
-    reviewReasons: st.rvReasons,
-    goodEntries: st.gvEntries,
-    goodReasons: st.gvReasons,
-    memories: st.memories
-  };
-  try {
-    var r = await fetch('/api/data/upload', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(data)
-    });
-    var result = await r.json();
-    if (result.error) throw new Error(result.error);
-    // Also push to remote
-    var pushR = await fetch('/api/git/push', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({branch:s.giteeBranch||'main', message:'Backup: '+new Date().toLocaleString('zh-CN'), token:s.giteeToken, repo:s.giteeRepo})
-    });
-    var pushResult = await pushR.json();
-    status.textContent = '✅ 已备份至云端: '+new Date().toLocaleString('zh-CN');
-    toast('已备份至云端','success');
-  } catch(e) {
-    status.textContent = '❌ 备份失败: '+e.message;
-    toast('备份失败: '+e.message,'error');
+var _backupConvIds = [];
+function showBackupConvModal(){
+  if(!st.convs||!st.convs.length){doCloudExport();return}
+  var html='<div class="backup-conv-select-all"><input type="checkbox" onchange="toggleAllBackupConvs(this)"> 全选 / 取消全选</div>';
+  for(var i=0;i<st.convs.length;i++){
+    var cn=st.convs[i]; var title=cn.msgs&&cn.msgs[0]?cn.msgs[0].content.slice(0,40):'空对话';
+    html+='<label class="backup-conv-item"><input type="checkbox" value="'+cn.id+'"> '+esc(title)+' ('+(cn.msgs?cn.msgs.length:0)+'条)</label>';
   }
+  G('backupConvList').innerHTML=html;
+  G('backupConvModal').classList.add('show');
+}
+function toggleAllBackupConvs(cb){
+  var boxes=G('backupConvList').querySelectorAll('input[type=checkbox]');
+  for(var i=0;i<boxes.length;i++) boxes[i].checked=cb.checked;
+}
+function closeBackupConvModal(){G('backupConvModal').classList.remove('show')}
+async function doCloudExport(){
+  var boxes=G('backupConvList').querySelectorAll('input[type=checkbox]:checked');
+  _backupConvIds=[]; for(var i=0;i<boxes.length;i++) _backupConvIds.push(boxes[i].value);
+  closeBackupConvModal();
+  var s=st.settings;
+  if(!s.giteeToken||!s.giteeRepo){toast('请先配置 Gitee Token 和仓库','error');return}
+  var status=G('backupStatus'); status.textContent='⏳ 正在备份至云端...';
+  var data={
+    version:2,
+    exportedAt:new Date().toISOString(),
+    quickPrompts:st.qps,
+    reviewEntries:st.rvEntries,
+    reviewReasons:st.rvReasons,
+    goodEntries:st.gvEntries,
+    goodReasons:st.gvReasons,
+    memories:st.memories,
+    conversations:_backupConvIds.map(function(id){return st.convs.find(function(x){return x.id===id})}).filter(Boolean)
+  };
+  try{
+    var r=await fetch('/api/data/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    var result=await r.json();
+    if(result.error)throw new Error(result.error);
+    var pushR=await fetch('/api/git/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({branch:s.giteeBranch||'main',message:'Backup: '+new Date().toLocaleString('zh-CN'),token:s.giteeToken,repo:s.giteeRepo})});
+    var pushResult=await pushR.json();
+    status.textContent='✅ 已备份 ('+data.conversations.length+'对话) '+new Date().toLocaleString('zh-CN');
+    toast('已备份至云端','success');
+  }catch(e){status.textContent='❌ 失败: '+e.message;toast('备份失败: '+e.message,'error')}
 }
 
 async function cloudImport(){
   var s = st.settings;
-  if(!s.giteeToken || !s.giteeRepo){toast('请先在设置中配置 Gitee Token 和仓库','error');return}
+  if(!s.giteeToken || !s.giteeRepo){toast('请先配置 Gitee Token 和仓库','error');return}
   var status = G('backupStatus');
   status.textContent = '⏳ 正在从云端拉取...';
   try {
-    // Pull first
     await fetch('/api/git/pull', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({branch:s.giteeBranch||'main', token:s.giteeToken, repo:s.giteeRepo})
     });
-    // Download data
     var r = await fetch('/api/data/download');
     var data = await r.json();
     if (data.error) throw new Error(data.error);
     if (!data.version){toast('云端暂无备份数据','error'); status.textContent='❌ 云端暂无备份数据';return}
     
     var merged = 0;
-    // Quick prompts
     if(data.quickPrompts){for(var q of data.quickPrompts){if(!st.qps.find(function(x){return x.content===q.content})){st.qps.push(q);merged++}}}
-    // Review reasons
     if(data.reviewReasons){for(var rr of data.reviewReasons){if(!st.rvReasons.includes(rr)){st.rvReasons.push(rr);merged++}}}
-    // Review entries
-    if(data.reviewEntries){for(var r of data.reviewEntries){if(!st.rvEntries.find(function(x){return x.text===r.text})){st.rvEntries.push(r);merged++}}}
-    // Good reasons
+    if(data.reviewEntries){for(var rv of data.reviewEntries){if(!st.rvEntries.find(function(x){return x.text===rv.text})){st.rvEntries.push(rv);merged++}}}
     if(data.goodReasons){for(var gr of data.goodReasons){if(!st.gvReasons.includes(gr)){st.gvReasons.push(gr);merged++}}}
-    // Good entries
     if(data.goodEntries){for(var g of data.goodEntries){if(!st.gvEntries.find(function(x){return x.text===g.text})){st.gvEntries.push(g);merged++}}}
-    // Memories
     if(data.memories){for(var mp of data.memories){var ex=st.memories.find(function(x){return x.name===mp.name});if(ex){for(var mi of mp.items){if(!ex.items.find(function(x){return x.content===mi.content})){ex.items.push(mi);merged++}}}else{st.memories.push(mp);merged++}}}
+    // Restore conversations
+    var convRestored=0;
+    if(data.conversations&&Array.isArray(data.conversations)){
+      for(var cv of data.conversations){
+        if(!st.convs.find(function(x){return x.id===cv.id})){
+          st.convs.push(cv); convRestored++;
+        }
+      }
+    }
     
     save();
-    status.textContent = '✅ 已从云端恢复 '+merged+' 条数据';
-    toast('已从云端恢复 '+merged+' 条数据','success');
-    
-    // Refresh views
+    var msg='✅ 已恢复 '+merged+' 条';
+    if(convRestored>0) msg+=' + '+convRestored+' 个对话';
+    status.textContent=msg; toast(msg,'success');
     renderQPs(); renderRVs(); updateRvBadge(); renderRvReasons();
-    renderGVs(); updateGvBadge(); renderGvReasons(); renderMems();
-  } catch(e) {
-    status.textContent = '❌ 恢复失败: '+e.message;
-    toast('恢复失败: '+e.message,'error');
-  }
+    renderGVs(); updateGvBadge(); renderGvReasons(); renderMems(); renderSidebar();
+  } catch(e) { status.textContent='❌ 失败: '+e.message; toast('恢复失败: '+e.message,'error'); }
 }
+
 // ===== BACKUP (信息备份) =====
 function exportData(){
   var data = {
@@ -937,7 +965,8 @@ function exportData(){
     reviewReasons: st.rvReasons,
     goodEntries: st.gvEntries,
     goodReasons: st.gvReasons,
-    memories: st.memories
+    memories: st.memories,
+    conversations: st.convs
   };
   var json = JSON.stringify(data, null, 2);
   var blob = new Blob([json], {type: 'application/json'});

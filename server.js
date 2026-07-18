@@ -66,21 +66,24 @@ var loginPage = `<!DOCTYPE html>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#1a1a2e;display:flex;align-items:center;justify-content:center;height:100vh;color:#e0e0e0}
-.box{background:#222240;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.3);text-align:center;min-width:300px}
+.box{background:#222240;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.3);text-align:center;min-width:320px}
 h1{font-size:24px;margin-bottom:8px;background:linear-gradient(135deg,#4f6ef7,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 p{color:#999;font-size:14px;margin-bottom:20px}
-input{width:100%;padding:12px;border:1px solid #333;border-radius:8px;background:#2a2a50;color:#e0e0e0;font-size:16px;outline:none;margin-bottom:12px;text-align:center}
+input[type=password]{width:100%;padding:12px;border:1px solid #333;border-radius:8px;background:#2a2a50;color:#e0e0e0;font-size:16px;outline:none;margin-bottom:10px;text-align:center}
 input:focus{border-color:#4f6ef7}
 button{width:100%;padding:12px;background:#4f6ef7;color:#fff;border:none;border-radius:8px;font-size:16px;cursor:pointer;font-weight:600}
 button:hover{background:#3b5de7}
 .error{color:#e05555;font-size:13px;margin-top:8px}
+.remember{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:12px;font-size:13px;color:#999;cursor:pointer}
+.remember input{width:auto;margin:0}
 </style></head>
 <body>
 <div class="box">
 <h1>💬 ChatStory</h1>
 <p>请输入访问密码</p>
-<form method="post" action="/login">
-<input type="password" name="pwd" placeholder="密码" autofocus>
+<form method="post" action="/login" onsubmit="return onLogin()">
+<input type="password" name="pwd" id="pwd" placeholder="密码" autofocus>
+<div class="remember"><input type="checkbox" id="remember"><label for="remember">记住密码</label></div>
 <button type="submit">进入</button>
 </form>
 <div class="error" id="err"></div>
@@ -88,6 +91,24 @@ button:hover{background:#3b5de7}
 <script>
 var p=new URLSearchParams(window.location.search);
 if(p.get('e')) document.getElementById('err').textContent='密码错误';
+
+// Load saved password
+(function(){
+  var saved = localStorage.getItem('chatstory_saved_pwd');
+  if(saved) {
+    document.getElementById('pwd').value = saved;
+    document.getElementById('remember').checked = true;
+  }
+})();
+
+function onLogin(){
+  if(document.getElementById('remember').checked){
+    localStorage.setItem('chatstory_saved_pwd', document.getElementById('pwd').value);
+  } else {
+    localStorage.removeItem('chatstory_saved_pwd');
+  }
+  return true;
+}
 </script>
 </body></html>`;
 
@@ -218,8 +239,10 @@ const server = http.createServer(async (req, res) => {
           if (putRes.ok) {
             results.push({ file: file, status: 'ok' });
           } else {
-            const err = await putRes.text();
-            results.push({ file: file, status: 'error', error: err.substring(0,200) });
+            const errText = await putRes.text();
+            let errMsg = errText.substring(0,300);
+            try { const ej = JSON.parse(errText); errMsg = ej.message || errMsg; } catch(e) {}
+            results.push({ file: file, status: 'error', error: errMsg });
           }
         } catch(e) {
           results.push({ file: file, status: 'error', error: e.message });
