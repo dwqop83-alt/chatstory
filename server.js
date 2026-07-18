@@ -126,6 +126,19 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
+    // Git Add
+    if (apiPath === '/api/git/add' && req.method === 'POST') {
+      const result = git('add -A');
+      return json(res, { ok: result.ok, error: result.error });
+    }
+    // Git Commit
+    if (apiPath === '/api/git/commit' && req.method === 'POST') {
+      const body = await readBody(req);
+      const { message } = JSON.parse(body || '{}');
+      const m = message || 'Sync from ChatStory';
+      const result = git('commit -m "' + m.replace(/"/g, '\\"') + '"');
+      return json(res, { ok: result.ok, output: result.output, error: result.error });
+    }
     // Git Status
     if (apiPath === '/api/git/status' && req.method === 'GET') {
       return json(res, git('status --porcelain'));

@@ -247,7 +247,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   <div class="side-backdrop" onclick="toggleSidebar()"></div>
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <h1>💬 ChatStory</h1>
+      <h1>💬 ChatStory <span id="appVersion" style="font-size:10px;color:var(--text-secondary);font-weight:400">v0</span></h1>
       <button class="icn-btn menu-toggle" onclick="toggleSidebar()">✕</button>
     </div>
     <div class="sidebar-content">
@@ -421,7 +421,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 <script>
 'use strict';
 const SK = 'chatstory_v2';
-let st = { convs:[], activeCid:null, settings:{ apiBaseUrl:'', apiKey:'', modelName:'', maxTokens:4096, maxUnlimited:true, temperature:0.7, systemPrompt:'', availModels:[], giteeToken:'', giteeRepo:'middle000/story_-project', giteeBranch:'main', githubToken:'', githubRepo:'dwqop83-alt/chatstory', githubBranch:'main' }, rvEntries:[], rvReasons:[], gvEntries:[], gvReasons:[], qps:[], memories:[], theme:'dark' };
+let st = { version:0, convs:[], activeCid:null, settings:{ apiBaseUrl:'', apiKey:'', modelName:'', maxTokens:4096, maxUnlimited:true, temperature:0.7, systemPrompt:'', availModels:[], giteeToken:'', giteeRepo:'middle000/story_-project', giteeBranch:'main', githubToken:'', githubRepo:'dwqop83-alt/chatstory', githubBranch:'main' }, rvEntries:[], rvReasons:[], gvEntries:[], gvReasons:[], qps:[], memories:[], theme:'dark' };
 let streaming = false;
 let attachs = [];
 let _debTimer = null, _saveTimer = null;
@@ -431,7 +431,7 @@ const msgsEl = G('msgs'), convListEl = G('convList'), userInput = G('userInput')
 const sendBtn = G('sendBtn'), mdlBadge = G('mdlBadge'), chatTitle = G('chatTitle');
 
 function save() { localStorage.setItem(SK, JSON.stringify(st)); }
-function load() { try { var r = localStorage.getItem(SK); if(r) st = JSON.parse(r); } catch(e){} st.convs=st.convs||[]; st.settings=st.settings||{}; st.rvEntries=st.rvEntries||[]; st.rvReasons=st.rvReasons||[]; st.gvEntries=st.gvEntries||[]; st.gvReasons=st.gvReasons||[]; st.qps=st.qps||[]; st.memories=st.memories||[]; if(!st.settings.giteeToken)st.settings.giteeToken=''; if(!st.settings.giteeRepo)st.settings.giteeRepo='middle000/story_-project'; if(!st.settings.giteeBranch)st.settings.giteeBranch='main'; }
+function load() { try { var r = localStorage.getItem(SK); if(r) st = JSON.parse(r); } catch(e){} st.convs=st.convs||[]; st.settings=st.settings||{}; st.version=st.version||0; st.rvEntries=st.rvEntries||[]; st.rvReasons=st.rvReasons||[]; st.gvEntries=st.gvEntries||[]; st.gvReasons=st.gvReasons||[]; st.qps=st.qps||[]; st.memories=st.memories||[]; if(!st.settings.giteeToken)st.settings.giteeToken=''; if(!st.settings.giteeRepo)st.settings.giteeRepo='middle000/story_-project'; if(!st.settings.giteeBranch)st.settings.giteeBranch='main'; }
 
 load(); applyTheme(); renderAll();
 
