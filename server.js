@@ -390,6 +390,11 @@ function githubRequest(url, options = {}) {
     if (!filePath.startsWith(DIR)) { res.writeHead(403); res.end('Forbidden'); return; }
     const ext = path.extname(filePath).toLowerCase();
     res.setHeader('Content-Type', MIME[ext] || 'application/octet-stream');
+    if (ext === '.html' || ext === '.js' || ext === '.css' || ext === '.json') {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
     fs.readFile(filePath, (err, data) => {
       if (err) { res.writeHead(404); res.end('404 Not Found'); return; }
       res.writeHead(200); res.end(data);
