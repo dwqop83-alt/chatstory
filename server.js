@@ -34,7 +34,7 @@ function readBody(req) {
 
 function git(args) {
   try {
-    return { ok: true, output: execSync(GIT + ' ' + args, { cwd: DIR, encoding: 'utf8', timeout: 30000 }).trim() };
+    return { ok: true, output: execSync(GIT + ' ' + args, { cwd: DIR, encoding: 'utf8', timeout: 120000 }).trim() };
   } catch (e) {
     return { ok: false, error: (e.stderr || e.message || '').toString().trim() };
   }
