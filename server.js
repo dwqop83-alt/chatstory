@@ -11,8 +11,8 @@ const PASSWORD = 'chatstory888';
 const GIT = process.platform === 'win32' ? '"C:\\Program Files\\Git\\bin\\git.exe"' : 'git';
 
 const MIME = {
-  '.html': 'text/html', '.js': 'application/javascript', '.json': 'application/json',
-  '.png': 'image/png', '.svg': 'image/svg+xml', '.css': 'text/css',
+  '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png', '.svg': 'image/svg+xml', '.css': 'text/css; charset=utf-8',
   '.ico': 'image/x-icon', '.txt': 'text/plain', '.md': 'text/markdown'
 };
 

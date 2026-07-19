@@ -1,4 +1,4 @@
-﻿// ===== LOREBOOK EXTRACTION =====
+// ===== LOREBOOK EXTRACTION =====
 var _loreData=null,_loreStats=null,_loreTab="characters",_rawTab="prompt";
 var _pubTab="progress",_pubRawSub="prompt",_rawPrompt="",_rawResponse="",_rawParsed=null;
 var _progressTimer=null,_progressStart=0;

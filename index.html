@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=mrrezuvl">
 </head>
 <body class="dark">
 <div class="app">
@@ -53,17 +53,25 @@
 
       <!-- 3. 工程 -->
       <div class="side-sec">
-        <div class="side-sec-hdr collapsed" onclick="toggleSec('projects',this)"><span>📁 工程</span><span class="arr">▼</span></div>
+        <div class="side-sec-hdr collapsed" onclick="toggleSec('projects',this)"><span>📁 书籍工程 <span id="projCount" style="font-size:10px;color:var(--text-secondary)"></span></span><span class="arr">▼</span></div>
         <div class="side-sec-body hidden" id="secProjects">
+          <button class="btn-sm full" onclick="showNewProjectModal()" style="margin:4px 0">＋ 新建书籍工程</button>
           <div id="projectList"></div>
-          <div class="pad" style="display:flex;flex-direction:column;gap:4px">
-            <input type="text" id="projectName" placeholder="新建工程名称..." onkeydown="if(event.key==='Enter')addProject()">
-            <button class="btn-sm" onclick="addProject()" style="width:100%">＋ 新建工程</button>
-          </div>
-          <div style="border-top:1px solid var(--border);margin:6px 0"></div>
-          <div id="projBody" style="font-size:11px;color:var(--text-secondary);padding:8px;text-align:center">📁 请先创建或选择一个工程</div>
+          <div id="projBody" style="font-size:11px;color:var(--text-secondary);padding:8px 12px;text-align:center">📁 请先创建或选择一个工程</div>
         </div>
       </div>
+
+<!-- 新建工程弹窗 -->
+<div class="modal-overlay hidden" id="newProjModal" class="hidden" onclick="if(event.target===this)closeNewProjectModal()">
+  <div class="modal-box" style="max-width:380px">
+    <h3>📁 新建书籍工程</h3>
+    <input type="text" id="newProjName" placeholder="输入工程名称..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--text);font-size:14px;outline:none;margin:12px 0" onkeydown="if(event.key==='Enter')addProject()">
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-sm" onclick="closeNewProjectModal()" style="background:var(--hover);color:var(--text)">取消</button>
+      <button class="btn-sm" onclick="addProject()">创建</button>
+    </div>
+  </div>
+</div>
 
       <!-- 4. 备份 -->
       <div class="side-sec">
@@ -129,7 +137,7 @@
 </div>
 
 
-<div class="modal-overlay" id="backupConvModal">
+<div class="modal-overlay hidden" id="backupConvModal" class="hidden">
   <div class="modal" style="max-width:420px">
     <div style="font-size:15px;font-weight:600;margin-bottom:12px">☁️ 选择要备份的对话</div>
     <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">勾选需要同步到云端的对话（已有数据会自动备份）</div>
@@ -141,7 +149,7 @@
   </div>
 </div>
 <!-- Neg Prompt Modal -->
-<div class="modal-overlay" id="negModal">
+<div class="modal-overlay hidden" id="negModal" class="hidden">
   <div class="modal">
     <h2>🧪 负向提示词</h2>
     <pre id="negPromptText"></pre>
@@ -152,7 +160,7 @@
   </div>
 </div>
 <!-- Pos Prompt Modal -->
-<div class="modal-overlay" id="posModal">
+<div class="modal-overlay hidden" id="posModal" class="hidden">
   <div class="modal">
     <h2>✨ 正向提示词</h2>
     <pre id="posPromptText"></pre>
@@ -163,12 +171,12 @@
   </div>
 </div>
 
-<script src="js/main.js"></script>
-<script src="js/review.js"></script>
-<script src="js/lorebook.js"></script>
+<script src="js/main.js?v=mrrezuvl"></script>
+<script src="js/review.js?v=mrrezuvl"></script>
+<script src="js/lorebook.js?v=mrrezuvl"></script>
 
 <!-- Settings Modal -->
-<div class="modal-overlay" id="settingsModal">
+<div class="modal-overlay hidden" id="settingsModal" class="hidden">
   <div class="modal">
     <h2>⚙️ API 设置</h2>
     <div style="margin-bottom:12px">

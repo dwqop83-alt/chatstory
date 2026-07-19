@@ -1,4 +1,4 @@
-﻿// ===== REVIEW (低级作家) =====
+// ===== REVIEW (低级作家) =====
 function renderRvReasons(){G('rvReason').innerHTML='<option value="">-- 选择原因 --</option>'+st.rvReasons.map(r=>'<option>'+esc(r)+'</option>').join('')}
 function onRvReason(){}
 function addRvReason(){var v=G('rvNewReason').value.trim();if(!v)return;if(!st.rvReasons.includes(v))st.rvReasons.push(v);save();renderRvReasons();G('rvReason').value=v;G('rvNewReason').value=''}function delRvReason(i){st.rvReasons.splice(i,1);save();renderRvReasons();toast('???','success')}function delGvReason(i){st.gvReasons.splice(i,1);save();renderGvReasons();toast('???','success')}
@@ -8,7 +8,7 @@ function renderRVs(){
   el.innerHTML=[...st.rvEntries].reverse().map(e=>'<div class="review-entry"><button class="review-entry-del" onclick="delRv(\''+e.id+'\')">✕</button><span class="review-entry-num">#'+e.num+'</span> <span class="review-entry-date">'+new Date(e.date).toLocaleString('zh-CN')+'</span><div class="review-entry-text">'+esc(e.text.slice(0,300))+(e.text.length>300?'...':'')+'</div><div class="review-entry-reason"><strong>原因：</strong>'+esc(e.reason)+'</div><div class="review-entry-ai"><strong>🤖 AI分析：</strong> <span class="rv-actions"><button class="rv-act" onclick="redoRvAI(\''+e.id+'\')" title="重新分析">🔄</button><button class="rv-act" onclick="editRvAI(\''+e.id+'\')" title="编辑">✏️</button></span><br><span id="rvai-'+e.id+'">'+esc(e.aiAnalysis)+'</span></div></div>').join('');
 }
 function delRv(id){if(!confirm('删除？'))return;st.rvEntries=st.rvEntries.filter(e=>e.id!==id);st.rvEntries.forEach((e,i)=>e.num=i+1);save();renderRVs();updateRvBadge()}
-function updateRvBadge(){var n=st.rvEntries.length;var b=G('rvBadge');b.textContent=n;b.style.display=n>0?'':'none'}
+function updateRvBadge(){try{var n=st.rvEntries.length;var b=G('rvBadge');if(b){b.textContent=n;b.style.display=n>0?'':'none'}}catch(e){}}
 async function submitReview(){
   var text=G('rvText').value.trim(); if(!text){toast('请填内容','error');return}
   var reason=G('rvReason').value||G('rvNewReason').value.trim();
@@ -78,7 +78,7 @@ function genNegPrompt(){
   var seen=new Set(), rules=[];
   for(var e of st.rvEntries){if(e.aiAnalysis&&!e.aiAnalysis.startsWith('(失败')){if(!seen.has(e.aiAnalysis)){seen.add(e.aiAnalysis);rules.push(e.aiAnalysis)}}}
   var p='# 负向提示词\n基于'+st.rvEntries.length+'条记录\n\n应避免：\n\n'+rules.map(r=>'- '+r).join('\n')+'\n\n## 摘要\n'+st.rvEntries.map(e=>'- #'+e.num+' ['+e.reason+'] '+e.text.slice(0,60).replace(/\n/g,' ')).join('\n');
-  G('negPromptText').textContent=p; G('negModal').classList.add('show');
+  G('negPromptText').textContent=p; G('negModal').classList.remove('hidden');
 }
 function copyNeg(){navigator.clipboard.writeText(G('negPromptText').textContent).then(()=>toast('已复制','success'))}
 
@@ -92,7 +92,7 @@ function renderGVs(){
   el.innerHTML=[...st.gvEntries].reverse().map(e=>'<div class="good-entry"><button class="good-entry-del" onclick="delGv(\''+e.id+'\')">✕</button><span class="good-entry-num">#'+e.num+'</span> <span class="good-entry-date">'+new Date(e.date).toLocaleString('zh-CN')+'</span><div class="good-entry-text">'+esc(e.text.slice(0,300))+(e.text.length>300?'...':'')+'</div><div class="good-entry-reason"><strong>标签：</strong>'+esc(e.reason)+'</div><div class="good-entry-ai"><strong>🤖 AI分析：</strong> <span class="rv-actions"><button class="rv-act" onclick="redoGvAI(\''+e.id+'\')" title="重新分析">🔄</button><button class="rv-act" onclick="editGvAI(\''+e.id+'\')" title="编辑">✏️</button></span><br><span id="gvai-'+e.id+'">'+esc(e.aiAnalysis)+'</span></div></div>').join('');
 }
 function delGv(id){if(!confirm('删除？'))return;st.gvEntries=st.gvEntries.filter(e=>e.id!==id);st.gvEntries.forEach((e,i)=>e.num=i+1);save();renderGVs();updateGvBadge()}
-function updateGvBadge(){var n=st.gvEntries.length;var b=G('gvBadge');b.textContent=n;b.style.display=n>0?'':'none'}
+function updateGvBadge(){try{var n=st.gvEntries.length;var b=G('gvBadge');if(b){b.textContent=n;b.style.display=n>0?'':'none'}}catch(e){}}
 async function submitGood(){
   var text=G('gvText').value.trim(); if(!text){toast('请填内容','error');return}
   var reason=G('gvReason').value||G('gvNewReason').value.trim();
@@ -118,7 +118,7 @@ function genPosPrompt(){
   var seen=new Set(), rules=[];
   for(var e of st.gvEntries){if(e.aiAnalysis&&!e.aiAnalysis.startsWith('(失败')){if(!seen.has(e.aiAnalysis)){seen.add(e.aiAnalysis);rules.push(e.aiAnalysis)}}}
   var p='# 正向提示词\n基于'+st.gvEntries.length+'条记录\n\n应效仿：\n\n'+rules.map(r=>'- '+r).join('\n')+'\n\n## 摘要\n'+st.gvEntries.map(e=>'- #'+e.num+' ['+e.reason+'] '+e.text.slice(0,60).replace(/\n/g,' ')).join('\n');
-  G('posPromptText').textContent=p; G('posModal').classList.add('show');
+  G('posPromptText').textContent=p; G('posModal').classList.remove('hidden');
 }
 function copyPos(){navigator.clipboard.writeText(G('posPromptText').textContent).then(()=>toast('已复制','success'))}
 function flagToGood(){
@@ -143,13 +143,13 @@ function renderMems(){
 
 // ===== MODEL DROPDOWN =====
 function toggleMdlDrop(e){e.stopPropagation();G('mdlDrop').classList.toggle('show')}
-function selChatModel(m){st.settings.modelName=m;save();renderAll();G('mdlDrop').classList.remove('show')}
+function selChatModel(m){st.settings.modelName=m;save();renderAll();G('mdlDrop').classList.add('hidden')}
 function renderMdlDrop(){
   var d=G('mdlDrop'), ms=st.settings.availModels||[], cur=st.settings.modelName;
   if(!ms.length){d.innerHTML='<div class="mdl-drop-item" style="color:var(--text-secondary)">无模型 - 在设置中获取</div>';return}
   d.innerHTML=ms.map(m=>'<div class="mdl-drop-item'+(m===cur?' active':'')+'" onclick="selChatModel(\''+m.replace(/'/g,"\\'")+'\')">'+m+'</div>').join('');
 }
-document.addEventListener('click',function(e){var d=G('mdlDrop'),w=document.querySelector('.mdl-badge-wrap');if(d&&w&&!w.contains(e.target))d.classList.remove('show')});
+document.addEventListener('click',function(e){var d=G('mdlDrop'),w=document.querySelector('.mdl-badge-wrap');if(d&&w&&!w.contains(e.target))d.classList.add('hidden')});
 
 // ===== FLAG & ATTACH =====
 function onAttach(e){
@@ -179,7 +179,7 @@ function msgToMem(e,i){
   setTimeout(function(){
     menu.style.left = rect.left + 'px';
     menu.style.top = (rect.bottom + 4) + 'px';
-    menu.classList.add('show');
+    menu.classList.remove('hidden');
     renderCtxSub();
   }, 100);
 }
@@ -240,3 +240,8 @@ async function publishApp(){
     toast('❌ '+e.message,'error');
   }
 }
+
+// Call render functions after load
+if(typeof renderMdlDrop==='function')renderMdlDrop();
+if(typeof updateRvBadge==='function')updateRvBadge();
+if(typeof updateGvBadge==='function')updateGvBadge();
