@@ -1,7 +1,7 @@
 ﻿
 'use strict';
 const SK = 'chatstory_v2';
-let st = { version:0, convs:[], activeCid:null, settings:{ apiBaseUrl:'', apiKey:'', modelName:'', maxTokens:4096, maxUnlimited:true, temperature:0.7, systemPrompt:'', availModels:[], giteeToken:'', giteeRepo:'', giteeBranch:'main', githubToken:'', githubRepo:'', githubBranch:'main' }, rvEntries:[], rvReasons:[], gvEntries:[], gvReasons:[], qps:[], memories:[], theme:'dark' };
+let st = { version:0, convs:[], activeCid:null, settings:{ apiBaseUrl:'', apiKey:'', modelName:'', maxTokens:4096, maxUnlimited:true, temperature:0.7, systemPrompt:'', availModels:[], giteeToken:'', giteeRepo:'', giteeBranch:'main', githubToken:'', githubRepo:'', githubBranch:'main' }, activeProject:null, projects:[], qps:[], theme:'dark' };
 let streaming = false;
 let attachs = [];
 let _debTimer = null, _saveTimer = null;
@@ -31,7 +31,7 @@ function toggleSec(name, el){
   if(name==='review'){renderRVs();renderRvReasons()}
   if(name==='good'){renderGVs();renderGvReasons()}
   if(name==='memory') renderMems();
-  if(name==='backup'){}
+  if(name==='backup'){};if(name==='projects'){renderProjects();renderProjBody()}
   if(name==='lorebookList') renderLorebookList();
   }
 
@@ -49,6 +49,155 @@ function jumpTo(name){
 }
 
 // ===== CONVERSATIONS =====
+
+
+// ===== PROJECT MANAGEMENT =====
+function addProject(){
+  var n = G('projectName').value.trim();
+  if(!n){ toast('请输入工程名称','error'); return; }
+  var proj = { id: Date.now().toString(36), name: n, rvEntries: [], rvReasons: [], gvEntries: [], gvReasons: [], memories: [], lorebooks: [], lorebook: null };
+  st.projects.push(proj);
+  G('projectName').value = '';
+  st.activeProject = proj.id;
+  save(); renderProjects(); renderProjBody();
+  toast('已创建工程: '+n, 'success');
+}
+
+function toggleSubSec(el){
+  el.classList.toggle('collapsed');
+  var body = el.nextElementSibling;
+  if(body) body.classList.toggle('hidden');
+}
+function delProject(id, e){
+  e.stopPropagation();
+  if(!confirm('删除整个工程?')) return;
+  st.projects = st.projects.filter(function(p){ return p.id !== id; });
+  if(st.activeProject === id) st.activeProject = st.projects[0] ? st.projects[0].id : null;
+  save(); renderProjects(); renderProjBody();
+}
+function selProject(id){
+  st.activeProject = id; save(); renderProjects(); renderProjBody();
+  renderRVs(); renderGVs(); renderMems(); renderLorebookList();
+}
+function getActiveProject(){
+  return st.projects.find(function(p){ return p.id === st.activeProject; }) || null;
+}
+function renderProjects(){
+  var el = G('projectList');
+  if(!el) return;
+  if(!st.projects.length){
+    el.innerHTML = '<div style="font-size:11px;color:var(--text-secondary);padding:8px;text-align:center">暂无工程</div>';
+    return;
+  }
+  var h = '';
+  for(var i = 0; i < st.projects.length; i++){
+    var p = st.projects[i];
+    var active = p.id === st.activeProject;
+    var rvCount = (p.rvEntries||[]).length;
+    var gvCount = (p.gvEntries||[]).length;
+    var memCount = 0;
+    for(var j = 0; j < (p.memories||[]).length; j++) memCount += (p.memories[j].items||[]).length;
+    var loreCount = (p.lorebooks||[]).length;
+    h += '<div class="proj-item'+(active?' active':'')+'" onclick="selProject(\''+p.id+'\')">';
+    h += '<div class="proj-info"><div class="proj-name">📁 '+esc(p.name)+'</div>';
+    h += '<div class="proj-meta" style="margin-top:4px">';
+    if(rvCount) h += '<span style="margin-right:6px">✍️'+rvCount+'</span>';
+    if(gvCount) h += '<span style="margin-right:6px">🏆'+gvCount+'</span>';
+    if(memCount) h += '<span style="margin-right:6px">🧠'+memCount+'</span>';
+    if(loreCount) h += '<span>🌍'+loreCount+'</span>';
+    h += '</div></div>';
+    h += '<button class="btn-sm" onclick="delProject(\''+p.id+'\',event)" style="padding:2px 6px;font-size:10px;background:transparent;color:#e05555;border:1px solid #e05555;border-radius:4px;cursor:pointer;flex-shrink:0">✕</button>';
+    h += '</div>';
+  }
+  el.innerHTML = h;
+}
+function renderProjBody(){
+  var p = getActiveProject();
+  var container = G('projBody');
+  if(!container) return;
+  if(!p){
+    container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary);font-size:13px">📁 请先创建或选择一个工程</div>';
+    return;
+  }
+  // Render sub-modules inside projBody
+  var h = '';
+  
+  // === 低级作家 ===
+  h += '<div class="side-sec" style="margin:0;border-radius:0">';
+  h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)" style="padding:6px 8px"><span>✍️ 低级作家 <span style="font-size:10px;color:var(--text-secondary)" id="rvBadge">'+(p.rvEntries||[]).length+'</span></span><span class="arr">▼</span></div>';
+  h += '<div class="side-sec-body hidden" style="padding:4px">';
+  h += '<div class="review-list" id="rvList"></div>';
+  h += '<div class="review-form">';
+  h += '<textarea id="rvText" placeholder="粘贴有问题的描写..."></textarea>';
+  h += '<select id="rvReason" onchange="onRvReason()"><option value="">-- 选择原因 --</option></select><div class="tag-chips" id="rvTagChips"></div>';
+  h += '<div style="display:flex;gap:4px;margin-bottom:4px"><input type="text" id="rvNewReason" placeholder="或输入新原因..."><button class="btn-sm" style="padding:5px 10px;font-size:11px" onclick="addRvReason()">+</button></div>';
+  h += '<div style="display:flex;gap:4px"><button class="btn-sm" id="btnRvAdd" onclick="submitReview()" style="flex:1">📌 记录并分析</button><button class="btn-sm" onclick="editReviewPrompt()" title="编辑分析Prompt" style="padding:5px 8px;font-size:11px">✏️</button><button class="btn-prp" onclick="genNegPrompt()" style="flex:1">🧪 负Prompt</button></div>';
+  h += '</div></div></div>';
+  
+  // === 高级作家 ===
+  h += '<div class="side-sec" style="margin:0;border-radius:0">';
+  h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)" style="padding:6px 8px"><span>🏆 高级作家 <span style="font-size:10px;color:var(--text-secondary)" id="gvBadge">'+(p.gvEntries||[]).length+'</span></span><span class="arr">▼</span></div>';
+  h += '<div class="side-sec-body hidden" style="padding:4px">';
+  h += '<div class="good-list" id="gvList"></div>';
+  h += '<div class="good-form">';
+  h += '<textarea id="gvText" placeholder="粘贴好的描写..."></textarea>';
+  h += '<select id="gvReason" onchange="onGvReason()"><option value="">-- 选择标签 --</option></select><div class="tag-chips" id="gvTagChips"></div>';
+  h += '<div style="display:flex;gap:4px;margin-bottom:4px"><input type="text" id="gvNewReason" placeholder="或输入新标签..."><button class="btn-sm" style="padding:5px 10px;font-size:11px" onclick="addGvReason()">+</button></div>';
+  h += '<div style="display:flex;gap:4px"><button class="btn-sm" id="btnGvAdd" onclick="submitGood()" style="flex:1">📌 记录并分析</button><button class="btn-sm" onclick="editGoodPrompt()" title="编辑分析Prompt" style="padding:5px 8px;font-size:11px">✏️</button><button class="btn-prp" onclick="genPosPrompt()" style="flex:1">✨ 正Prompt</button></div>';
+  h += '</div></div></div>';
+  
+  // === 长期记忆 ===
+  h += '<div class="side-sec" style="margin:0;border-radius:0">';
+  h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)" style="padding:6px 8px"><span>🧠 长期记忆</span><span class="arr">▼</span></div>';
+  h += '<div class="side-sec-body hidden" style="padding:4px">';
+  h += '<div id="memList"></div>';
+  h += '<div style="display:flex;flex-direction:column;gap:4px;padding:4px"><input type="text" id="memProjName" placeholder="新建记忆项目..."><button class="btn-sm" onclick="addMemProj()" style="width:100%">＋ 新建项目</button></div>';
+  h += '</div></div>';
+  
+  // === 世界观数据 ===
+  h += '<div class="side-sec" style="margin:0;border-radius:0">';
+  h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)" style="padding:6px 8px"><span>🌍 世界观数据</span><span class="arr">▼</span></div>';
+  h += '<div class="side-sec-body hidden" style="padding:4px">';
+  h += '<div style="display:flex;flex-direction:column;gap:6px;padding:4px">';
+  h += '<button class="btn-sm" onclick="compressContext()" style="width:100%;padding:8px;font-size:12px;font-weight:600">🗜️ 压缩上下文</button>';
+  h += '<div style="display:flex;gap:4px"><button class="btn-sm" onclick="openPromptEditor()" style="flex:1;padding:6px;font-size:11px">✏️ 编辑Prompt</button><button class="btn-sm" onclick="openLastLorebook()" style="flex:1;padding:6px;font-size:11px">📖 打开提取列表</button></div>';
+  h += '</div>';
+  h += '<div style="border-top:1px solid var(--border);margin:4px 0"></div>';
+  h += '<div id="lorebookList"><div style="font-size:11px;color:var(--text-secondary);padding:8px;text-align:center">暂无保存的世界观数据</div></div>';
+  h += '</div></div>';
+  
+  container.innerHTML = h;
+  
+  // Now populate the sub-modules with data
+  renderRvReasons(); renderRVs(); renderGvReasons(); renderGVs(); renderMems(); renderLorebookList();
+}
+
+// ===== LEGACY BRIDGE: redirect st.rvEntries etc to active project =====
+function getRv(){ var p = getActiveProject(); return p ? p.rvEntries : []; }
+function setRv(v){ var p = getActiveProject(); if(p) p.rvEntries = v; }
+function getRvR(){ var p = getActiveProject(); return p ? p.rvReasons : []; }
+function setRvR(v){ var p = getActiveProject(); if(p) p.rvReasons = v; }
+function getGv(){ var p = getActiveProject(); return p ? p.gvEntries : []; }
+function setGv(v){ var p = getActiveProject(); if(p) p.gvEntries = v; }
+function getGvR(){ var p = getActiveProject(); return p ? p.gvReasons : []; }
+function setGvR(v){ var p = getActiveProject(); if(p) p.gvReasons = v; }
+function getMem(){ var p = getActiveProject(); return p ? p.memories : []; }
+function setMem(v){ var p = getActiveProject(); if(p) p.memories = v; }
+function getLBs(){ var p = getActiveProject(); return p ? p.lorebooks : []; }
+function setLBs(v){ var p = getActiveProject(); if(p) p.lorebooks = v; }
+function getLB(){ var p = getActiveProject(); return p ? p.lorebook : null; }
+function setLB(v){ var p = getActiveProject(); if(p) p.lorebook = v; }
+
+// Install getters/setters on st
+if(Object.defineProperty){
+  Object.defineProperty(st, 'rvEntries', { get: getRv, set: setRv, enumerable: true, configurable: true });
+  Object.defineProperty(st, 'rvReasons', { get: getRvR, set: setRvR, enumerable: true, configurable: true });
+  Object.defineProperty(st, 'gvEntries', { get: getGv, set: setGv, enumerable: true, configurable: true });
+  Object.defineProperty(st, 'gvReasons', { get: getGvR, set: setGvR, enumerable: true, configurable: true });
+  Object.defineProperty(st, 'memories', { get: getMem, set: setMem, enumerable: true, configurable: true });
+  Object.defineProperty(st, 'lorebooks', { get: getLBs, set: setLBs, enumerable: true, configurable: true });
+  Object.defineProperty(st, 'lorebook', { get: getLB, set: setLB, enumerable: true, configurable: true });
+}
 function newConv(){
   var c = {id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),title:'新对话',msgs:[],createdAt:Date.now()};
   st.convs.unshift(c); st.activeCid=c.id; save(); renderAll(); userInput.focus();
@@ -362,17 +511,12 @@ async function cloudImport(){
 // ===== BACKUP (信息备份) =====
 function exportData(){
   var data = {
-    version: 1,
+    version: 3,
     exportedAt: new Date().toISOString(),
     quickPrompts: st.qps,
-    reviewEntries: st.rvEntries,
-    reviewReasons: st.rvReasons,
-    goodEntries: st.gvEntries,
-    goodReasons: st.gvReasons,
-    memories: st.memories,
+    projects: st.projects,
     conversations: st.convs
-  };
-  var json = JSON.stringify(data, null, 2);
+  };  var json = JSON.stringify(data, null, 2);
   var blob = new Blob([json], {type: 'application/json'});
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
