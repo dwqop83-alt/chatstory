@@ -207,30 +207,33 @@ async function publishApp(){
     updateProgress(40,'📤 上传文件中...');
     
     var t0=Date.now();
+    var ctrl=new AbortController();var to=setTimeout(function(){ctrl.abort()},300000);
     var r=await fetch('/api/github/push',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:msg,token:s.githubToken,repo:s.githubRepo,branch:s.githubBranch||'main'})
+      body:JSON.stringify({message:msg,token:s.githubToken,repo:s.githubRepo,branch:s.githubBranch||'main'}),
+      signal:ctrl.signal
     });
+    clearTimeout(to);
     var d=await r.json();
     var elapsed=((Date.now()-t0)/1000).toFixed(1);
     
     if(d.ok){
-      st.version=(st.version||0)+1; save(); updateVersion();
-      update(100,'✅ 已发布 v'+st.version+' · '+d.pushed+' 文件 · '+elapsed+'s');
+      st.version=(st.version||0)+1; save(); var ve=G('appVersion');if(ve)ve.textContent='v'+st.version;
+      updateProgress(100,'✅ 已发布 v'+st.version+' · '+d.pushed+' 文件 · '+elapsed+'s');
       await new Promise(function(r){setTimeout(r,1500)});
       hideProgress(1500);
       toast('✅ 已发布 v'+st.version+' ('+elapsed+'s)','success');
     }else{
       var detail=d.results?d.results.filter(function(x){return x.status==='error'}).map(function(x){return x.file}).join(', '):'';
-      update(100,'❌ 失败: '+d.failed+'/'+(d.pushed+d.failed)+' 文件出错');
+      updateProgress(100,'❌ 失败: '+d.failed+'/'+(d.pushed+d.failed)+' 文件出错');
       document.getElementById('pubFill').style.background='#e05555';
       await new Promise(function(r){setTimeout(r,2500)});
       hideProgress(1500);
       toast('❌ 发布失败: '+detail,'error');
     }
   }catch(e){
-    update(100,'❌ 网络错误: '+e.message);
+    updateProgress(100,'❌ 网络错误: '+e.message);
     document.getElementById('pubFill').style.background='#e05555';
     await new Promise(function(r){setTimeout(r,2500)});
     hideProgress(1500);

@@ -523,10 +523,7 @@ async function regenerateResponse(ai){
   var s=st.settings;
   var apiMsgs=[];
   var sys=s.systemPrompt||'';
-  var memLines=[];
-  for(var p of st.memories){for(var j of p.items)memLines.push('['+p.name+'] '+j.content)}
-  if(memLines.length)sys=(sys?sys+'\n\n':'')+'# 长期记忆\n'+memLines.map(function(m){return'- '+m}).join('\n');
-  var loreCtx='';if(st.lorebook&&(st.lorebook.characters||[]).length+(st.lorebook.settings||[]).length+(st.lorebook.plotPoints||[]).length+(st.lorebook.worldRules||[]).length>0){loreCtx='\n\n# 小说世界观设定\n'+buildLoreContext(st.lorebook,true)}if(loreCtx)sys=sys+loreCtx;if(sys)apiMsgs.push({role:'system',content:sys});
+  if(sys)apiMsgs.push({role:'system',content:sys});
   for(var k=0;k<=ai;k++){var m=c.msgs[k];if(k===ai)continue;apiMsgs.push({role:m.role,content:Array.isArray(m.content)?m.content.map(function(p){return p.type==='text'?p.text:''}).join(' '):m.content})}
   streaming=true;sendBtn.classList.add('loading');sendBtn.disabled=true;
   try{
@@ -596,13 +593,9 @@ async function sendMsg(){
 
   c.msgs.push({role:'assistant',content:'',versions:[{content:'',ts:Date.now()}],vIdx:0}); var ai=c.msgs.length-1; save(); renderAll();
 
-  // Build API messages with memories
   var apiMsgs=[];
   var sys=s.systemPrompt||'';
-  var memLines=[];
-  for(var p of st.memories){for(var i of p.items)memLines.push('['+p.name+'] '+i.content)}
-  if(memLines.length)sys=(sys?sys+'\n\n':'')+'# 长期记忆\n'+memLines.map(m=>'- '+m).join('\n');
-  var loreCtx='';if(st.lorebook&&(st.lorebook.characters||[]).length+(st.lorebook.settings||[]).length+(st.lorebook.plotPoints||[]).length+(st.lorebook.worldRules||[]).length>0){loreCtx='\n\n# 小说世界观设定\n'+buildLoreContext(st.lorebook,true)}if(loreCtx)sys=sys+loreCtx;if(sys)apiMsgs.push({role:'system',content:sys});
+  if(sys)apiMsgs.push({role:'system',content:sys});
   for(var m of c.msgs.slice(0,-1))apiMsgs.push({role:m.role,content:m.content});
 
   streaming=true; sendBtn.classList.add('loading'); sendBtn.disabled=true;
