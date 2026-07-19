@@ -1,1 +1,37 @@
-{}
+{
+  "version": 2,
+  "exportedAt": "2026-07-19T06:49:26.256Z",
+  "quickPrompts": [
+    {
+      "title": "测试prompt",
+      "content": "这是一个测试"
+    }
+  ],
+  "reviewEntries": [
+    {
+      "id": "test1",
+      "num": 1,
+      "text": "测试描写",
+      "reason": "测试原因",
+      "date": "2026-07-19T06:49:26.274Z",
+      "aiAnalysis": "测试分析"
+    }
+  ],
+  "reviewReasons": [
+    "测试原因"
+  ],
+  "goodEntries": [],
+  "goodReasons": [],
+  "memories": [
+    {
+      "name": "测试记忆",
+      "items": [
+        {
+          "content": "测试内容",
+          "date": "2026-07-19T06:49:26.274Z"
+        }
+      ]
+    }
+  ],
+  "conversations": []
+}
