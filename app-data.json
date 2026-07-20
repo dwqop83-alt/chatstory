@@ -1,37 +1,17 @@
 {
   "version": 2,
-  "exportedAt": "2026-07-19T06:49:26.256Z",
+  "exportedAt": "2026-07-20T04:38:36.392Z",
   "quickPrompts": [
     {
-      "title": "测试prompt",
-      "content": "这是一个测试"
+      "id": "mrsgyuf4",
+      "title": "测试提示词",
+      "content": "这是测试提示词的内容"
     }
   ],
-  "reviewEntries": [
-    {
-      "id": "test1",
-      "num": 1,
-      "text": "测试描写",
-      "reason": "测试原因",
-      "date": "2026-07-19T06:49:26.274Z",
-      "aiAnalysis": "测试分析"
-    }
-  ],
-  "reviewReasons": [
-    "测试原因"
-  ],
+  "reviewEntries": [],
+  "reviewReasons": [],
   "goodEntries": [],
   "goodReasons": [],
-  "memories": [
-    {
-      "name": "测试记忆",
-      "items": [
-        {
-          "content": "测试内容",
-          "date": "2026-07-19T06:49:26.274Z"
-        }
-      ]
-    }
-  ],
+  "memories": [],
   "conversations": []
 }
