@@ -73,6 +73,31 @@
   </div>
 </div>
 
+      <!-- 保存对话到书籍工程弹窗 -->
+<div class="modal-overlay hidden" id="projectConvModal" onclick="if(event.target===this)closeProjectConvModal()">
+  <div class="modal-box" style="max-width:420px">
+    <h3>📚 保存对话到书籍工程</h3>
+    <div style="font-size:12px;color:var(--text-secondary);margin:8px 0">勾选需要保存到的书籍工程（已保存的会自动勾选）</div>
+    <div id="projectConvModalList" style="max-height:300px;overflow-y:auto;margin:8px 0"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-sm" onclick="closeProjectConvModal()" style="background:var(--hover);color:var(--text)">取消</button>
+      <button class="btn-sm" onclick="confirmSaveConversationToProjects()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 选择书籍工程弹窗（右键菜单） -->
+<div class="modal-overlay hidden" id="projectContextModal" onclick="if(event.target===this)closeProjectContextModal()">
+  <div class="modal-box" style="max-width:400px">
+    <h3 id="projectContextTitle">选择书籍工程</h3>
+    <div id="projectContextHint" style="font-size:12px;color:var(--text-secondary);margin:8px 0">选择一个书籍工程</div>
+    <div id="projectContextList" style="max-height:280px;overflow-y:auto;margin:8px 0"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-sm" onclick="closeProjectContextModal()" style="background:var(--hover);color:var(--text)">取消</button>
+      <button class="btn-sm" onclick="confirmProjectContextAction()">确认</button>
+    </div>
+  </div>
+</div>
       <!-- 4. 备份 -->
       <div class="side-sec">
         <div class="side-sec-hdr collapsed" onclick="toggleSec('backup',this)"><span>💾 备份</span><span class="arr">▼</span></div>
@@ -90,10 +115,7 @@
               <button class="btn-sm" onclick="doCloudExport()" style="flex:1">☁️ 备份至云端</button>
               <button class="btn-sm" onclick="cloudImport()" style="flex:1">☁️ 从云端恢复</button>
             </div>
-            <div style="border-top:1px solid var(--border);margin:4px 0"></div>
-            <div style="display:flex;gap:4px;margin-bottom:2px">
-              <span style="font-size:11px;color:var(--text-secondary);font-weight:600">🚀 发布</span>
-            </div>
+            
             <button class="btn-sm" onclick="publishApp()" style="width:100%;padding:8px;font-size:13px;font-weight:600;background:var(--accent);color:#fff">🚀 发布到云端</button>
           </div>
         </div>

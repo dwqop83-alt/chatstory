@@ -113,6 +113,10 @@ function onLogin(){
 async function githubRequest(url, options) {
   return new Promise(function(resolve, reject) {
     var u = new URL(url);
+    var bodyStr = '';
+    if (options.body) {
+      bodyStr = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
+    }
     var opts = {
       hostname: u.hostname,
       port: u.port || 443,
@@ -121,19 +125,21 @@ async function githubRequest(url, options) {
       headers: options.headers || {},
       rejectUnauthorized: false
     };
+    if (bodyStr) {
+      opts.headers['Content-Type'] = opts.headers['Content-Type'] || 'application/json;charset=UTF-8';
+      opts.headers['Content-Length'] = Buffer.byteLength(bodyStr);
+    }
     var proto = u.protocol === 'https:' ? require('https') : require('http');
     var req = proto.request(opts, function(res) {
       var body = '';
       res.on('data', function(c) { body += c; });
       res.on('end', function() {
         res.body = body;
-        res.text = function() { return Promise.resolve(body); };
-        res.json = function() { return Promise.resolve(JSON.parse(body)); };
         resolve(res);
       });
     });
     req.on('error', reject);
-    if (options.body) req.write(options.body);
+    if (bodyStr) req.write(bodyStr);
     req.end();
   });
 }
@@ -227,7 +233,7 @@ const server = http.createServer(async (req, res) => {
       });
 
       const putRes = await githubRequest('https://gitee.com/api/v5/repos/' + owner + '/' + repoName + '/contents/' + filePath, {
-        method: 'POST',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json;charset=UTF-8',
           'Authorization': 'Bearer ' + token

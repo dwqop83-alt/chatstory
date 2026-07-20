@@ -79,7 +79,7 @@ function syncWriterReasonsToProject(){
 }
 function populateWriterReasons(selected){
   var el=G('writerReasonTags');if(!el)return;var values=selected||[];
-  el.innerHTML=(writerReasons(_writerModalKind)||[]).map(function(r){return '<option value="'+esc(r)+'" '+(values.includes(r)?'selected':'')+'>'+esc(r)+'</option>'}).join('')||'<option disabled>暂无标签</option>';
+  var projectId=G('writerProjectChoice')&&G('writerProjectChoice').value;var project=projectId&&st.projects.find(function(p){return p.id===projectId});var list=project?(_writerModalKind==='good'?(project.gvReasons||[]):(project.rvReasons||[])):(writerReasons(_writerModalKind)||[]);el.innerHTML=list.map(function(r){return '<option value="'+esc(r)+'" '+(values.includes(r)?'selected':'')+'>'+esc(r)+'</option>'}).join('')||'<option disabled>暂无标签</option>';
 }
 function addWriterReason(){
   var input=G('writerNewReason'), value=input&&input.value.trim();if(!value)return;
