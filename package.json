@@ -1,0 +1,22 @@
+{
+  "name": "chatstory",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server-render.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://gitee.com/middle000/story_-project.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "playwright": "^1.61.1",
+    "sql.js": "^1.14.1"
+  }
+}

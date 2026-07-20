@@ -1,24 +1,24 @@
-﻿
-'use strict';
+﻿'use strict';
 const SK = 'chatstory_v2';
 let st = { version:0, convs:[], activeCid:null, settings:{ apiBaseUrl:'', apiKey:'', modelName:'', maxTokens:4096, maxUnlimited:true, temperature:0.7, systemPrompt:'', availModels:[], giteeToken:'', giteeRepo:'', giteeBranch:'main', githubToken:'', githubRepo:'', githubBranch:'main' }, activeProject:null, projects:[], qps:[], theme:'dark' };
 let streaming = false;
 let attachs = [];
 let _debTimer = null, _saveTimer = null;
+let _streamAbort = null;
 
 const G = id => document.getElementById(id);
 const msgsEl = G('msgs'), convListEl = G('convList'), userInput = G('userInput');
 const sendBtn = G('sendBtn'), mdlBadge = G('mdlBadge'), chatTitle = G('chatTitle');
 
-function save() { localStorage.setItem(SK, JSON.stringify(st)); }
-function load() { try { var r = localStorage.getItem(SK); if(r) st = JSON.parse(r); } catch(e){} st.convs=st.convs||[]; st.settings=st.settings||{}; st.version=st.version||0; st.rvEntries=st.rvEntries||[]; st.rvReasons=st.rvReasons||[]; st.gvEntries=st.gvEntries||[]; st.gvReasons=st.gvReasons||[]; st.qps=st.qps||[]; st.memories=st.memories||[]; if(!st.settings.giteeToken)st.settings.giteeToken='b6df2c768b72835f8fad74d052509656'; if(!st.settings.giteeRepo)st.settings.giteeRepo='middle000/story_-project'; if(!st.settings.giteeBranch)st.settings.giteeBranch='main'; }
-
-load(); applyTheme(); renderAll();
-
-userInput.addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,150)+'px'});
-
-function toggleTheme(){st.theme=st.theme==='dark'?'light':'dark';applyTheme();save()}
+function save() { localStorage.setItem(SK, JSON.stringify(st)); if(_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(function(){
+    fetch("/api/data/save", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(st)}).catch(function(e){});
+  }, 500);
+}
+function load(){var saved=localStorage.getItem(SK);if(saved){try{st=JSON.parse(saved)}catch(e){}}normalizeState();fetch('/api/data/load').then(function(r){return r.json()}).then(function(d){if(d.ok&&d.data){var serverData=d.data;if(serverData.version>=(st.version||0)){st=serverData;normalizeState();if(typeof renderAll==='function')renderAll()}else if(st.version>(serverData.version||0)){if(typeof save==='function')save()}}}).catch(function(e){});}
+function normalizeState(){st.convs=st.convs||[];st.projects=st.projects||[];st.projects.forEach(function(p){p.conversations=p.conversations||[];p.rvEntries=p.rvEntries||[];p.rvReasons=p.rvReasons||[];p.gvEntries=p.gvEntries||[];p.gvReasons=p.gvReasons||[];p.memories=p.memories||[];p.lorebooks=p.lorebooks||[]});st.settings=st.settings||{};st.version=st.version||0;st.rvEntries=st.rvEntries||[];st.rvReasons=st.rvReasons||[];st.gvEntries=st.gvEntries||[];st.gvReasons=st.gvReasons||[];st.qps=st.qps||[];st.memories=st.memories||[];if(!st.settings.giteeToken)st.settings.giteeToken="b6df2c768b72835f8fad74d052509656";if(!st.settings.giteeRepo)st.settings.giteeRepo="middle000/story_-project";if(!st.settings.giteeBranch)st.settings.giteeBranch="main";}
 function applyTheme(){var tb=G('themeBtn');if(st.theme==='dark'){document.body.classList.add('dark');if(tb)tb.textContent='☀️'}else{document.body.classList.remove('dark');if(tb)tb.textContent='🌙'}}
+load();applyTheme();renderAll();
 
 function toggleSidebar(){var sb=G('sidebar');var w=window.innerWidth;if(w>768){sb.classList.toggle('collapsed')}else{sb.classList.toggle('open');document.querySelector('.side-backdrop').classList.toggle('show')}}
 
@@ -57,7 +57,7 @@ function closeNewProjectModal(){G('newProjModal').classList.add('hidden');G('new
 function addProject(){
   var n = G('newProjName').value.trim();
   if(!n){ toast('请输入工程名称','error'); return; }
-  var proj = { id: Date.now().toString(36), name: n, rvEntries: [], rvReasons: [], gvEntries: [], gvReasons: [], memories: [], lorebooks: [], lorebook: null };
+  var proj = { id: Date.now().toString(36), name: n, rvEntries: [], rvReasons: [], gvEntries: [], gvReasons: [], memories: [], lorebooks: [], lorebook: null, conversations: [] };
   st.projects.push(proj);
   st.activeProject = proj.id;
   closeNewProjectModal();
@@ -68,6 +68,16 @@ function addProject(){
   el.classList.toggle('collapsed');
   var body = el.nextElementSibling;
   if(body) body.classList.toggle('hidden');
+}
+function renameProject(id,e){
+  if(e)e.stopPropagation();
+  var p=st.projects.find(function(x){return x.id===id});
+  if(!p)return;
+  var name=prompt('修改工程名称：',p.name||'');
+  if(name===null)return;
+  name=name.trim();
+  if(!name){toast('工程名称不能为空','error');return}
+  p.name=name; save(); renderProjects(); renderProjBody(); toast('工程名称已修改','success');
 }
 function delProject(id, e){
   e.stopPropagation();
@@ -80,6 +90,16 @@ function selProject(id){
   st.activeProject = id; save(); renderProjects(); renderProjBody();
   renderRVs(); renderGVs(); renderMems(); renderLorebookList();
 }
+function toggleProject(id){
+  st.expandedProjects = st.expandedProjects || [];
+  var idx = st.expandedProjects.indexOf(id);
+  if(idx >= 0) st.expandedProjects.splice(idx, 1);
+  else st.expandedProjects.push(id);
+  st.activeProject = id; save();
+  renderProjects();
+  renderProjectData(id);
+}
+
 function getActiveProject(){
   return st.projects.find(function(p){ return p.id === st.activeProject; }) || null;
 }
@@ -90,27 +110,75 @@ function renderProjects(){
     el.innerHTML = '<div style="font-size:11px;color:var(--text-secondary);padding:8px;text-align:center">暂无工程</div>';
     return;
   }
+  st.expandedProjects = st.expandedProjects || [];
   var h = '';
   for(var i = 0; i < st.projects.length; i++){
     var p = st.projects[i];
     var active = p.id === st.activeProject;
+    var expanded = st.expandedProjects.indexOf(p.id) >= 0;
     var rvCount = (p.rvEntries||[]).length;
     var gvCount = (p.gvEntries||[]).length;
     var memCount = 0;
     for(var j = 0; j < (p.memories||[]).length; j++) memCount += (p.memories[j].items||[]).length;
     var loreCount = (p.lorebooks||[]).length;
-    h += '<div class="proj-item'+(active?' active':'')+'" onclick="selProject(\''+p.id+'\')">';
-    h += '<div class="proj-info"><div class="proj-name">📁 '+esc(p.name)+'</div>';
-    h += '<div class="proj-meta" style="margin-top:4px">';
-    if(rvCount) h += '<span style="margin-right:6px">✍️'+rvCount+'</span>';
-    if(gvCount) h += '<span style="margin-right:6px">🏆'+gvCount+'</span>';
-    if(memCount) h += '<span style="margin-right:6px">🧠'+memCount+'</span>';
-    if(loreCount) h += '<span>🌍'+loreCount+'</span>';
-    h += '</div></div>';
+    var conversationCount = (p.conversations||[]).length;
+    h += '<div class="proj-item'+(active?' active':'')+'">';
+    h += '<div class="proj-hdr" onclick="toggleProject(\''+p.id+'\')" style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;transition:background 0.2s">';
+    h += '<span class="arr" id="projarr-'+p.id+'">'+(expanded?'▼':'▶')+'</span>';
+    h += '<span class="proj-name" style="flex:1">📁 '+esc(p.name)+'</span>';
+    h += '<span style="font-size:10px;color:var(--text-secondary);display:flex;gap:4px">';
+    if(rvCount) h += '<span title="低级作家">✍️'+rvCount+'</span>';
+    if(gvCount) h += '<span title="高级作家">🏆'+gvCount+'</span>';
+    if(memCount) h += '<span title="长期记忆">🧠'+memCount+'</span>';
+    if(loreCount) h += '<span title="世界观">🌍'+loreCount+'</span>';
+    if(conversationCount) h += '<span title="历史对话">💬'+conversationCount+'</span>';
+    h += '</span>';
+    h += '<button class="btn-sm" onclick="renameProject(\''+p.id+'\',event)" title="修改工程名称" style="padding:2px 6px;font-size:10px;background:transparent;color:var(--text-secondary);border:1px solid var(--border);border-radius:4px;cursor:pointer">✏️</button>';
     h += '<button class="btn-sm" onclick="delProject(\''+p.id+'\',event)" style="padding:2px 6px;font-size:10px;background:transparent;color:#e05555;border:1px solid #e05555;border-radius:4px;cursor:pointer;flex-shrink:0">✕</button>';
+    h += '</div>';
+    h += '<div class="proj-body" id="projbody-'+p.id+'" style="display:'+(expanded?'block':'none')+'">';
+    h += '<div class="side-sec">';
+    h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)"><span>💬 历史对话 <span style="font-size:10px;color:var(--text-secondary)">'+conversationCount+'</span></span><span class="arr">▼</span></div>';
+    h += '<div class="side-sec-body hidden"><div class="projectConvList" id="projConv-'+p.id+'"></div></div>';
+    h += '</div>';
+    h += '<div class="side-sec">';
+    h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)"><span>✍️ 低级作家 <span style="font-size:10px;color:var(--text-secondary)">'+rvCount+'</span></span><span class="arr">▼</span></div>';
+    h += '<div class="side-sec-body hidden">';
+    h += '<div class="writer-list-head"><button class="btn-sm" onclick="openWriterModal(\'review\')">＋ 新增分析</button></div>';
+    h += '<div class="review-list" id="rvList-'+p.id+'"></div>';
+    h += '</div></div>';
+    h += '<div class="side-sec">';
+    h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)"><span>🏆 高级作家 <span style="font-size:10px;color:var(--text-secondary)">'+gvCount+'</span></span><span class="arr">▼</span></div>';
+    h += '<div class="side-sec-body hidden">';
+    h += '<div class="writer-list-head"><button class="btn-sm" onclick="openWriterModal(\'good\')">＋ 新增分析</button></div>';
+    h += '<div class="good-list" id="gvList-'+p.id+'"></div>';
+    h += '</div></div>';
+    h += '<div class="side-sec">';
+    h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)"><span>🧠 长期记忆</span><span class="arr">▼</span></div>';
+    h += '<div class="side-sec-body hidden">';
+    h += '<div class="memList" id="memList-'+p.id+'"></div>';
+    h += '<div style="display:flex;flex-direction:column;gap:4px;padding:4px"><input type="text" id="memProjName-'+p.id+'" placeholder="新建记忆项目..."><button class="btn-sm" onclick="addMemProj(\''+p.id+'\')" style="width:100%">＋ 新建项目</button></div>';
+    h += '</div></div>';
+    h += '<div class="side-sec">';
+    h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)"><span>🌍 世界观数据</span><span class="arr">▼</span></div>';
+    h += '<div class="side-sec-body hidden">';
+    h += '<div style="display:flex;flex-direction:column;gap:6px;padding:4px">';
+    h += '<button class="btn-sm" onclick="compressContext()" style="width:100%;padding:8px;font-size:12px;font-weight:600">🗜️ 压缩上下文</button>';
+    h += '<div style="display:flex;gap:4px"><button class="btn-sm" onclick="openPromptEditor()" style="flex:1;padding:6px;font-size:11px">✏️ 编辑Prompt</button><button class="btn-sm" onclick="openLastLorebook()" style="flex:1;padding:6px;font-size:11px">📖 打开提取列表</button></div>';
+    h += '</div>';
+    h += '<div style="border-top:1px solid var(--border);margin:4px 0"></div>';
+    h += '<div class="lorebookList" id="lorebookList-'+p.id+'"><div style="font-size:11px;color:var(--text-secondary);padding:8px;text-align:center">暂无保存的世界观数据</div></div>';
+    h += '</div></div>';
+    h += '</div>';
     h += '</div>';
   }
   el.innerHTML = h;
+  // Render data for each expanded project
+  for(var i = 0; i < st.projects.length; i++){
+    if(st.expandedProjects && st.expandedProjects.indexOf(st.projects[i].id) >= 0){
+      renderProjectData(st.projects[i].id);
+    }
+  }
 }
 function renderProjBody(){
   var p = getActiveProject();
@@ -120,57 +188,236 @@ function renderProjBody(){
     container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary);font-size:13px">📁 请先创建或选择一个工程</div>';
     return;
   }
-  // Render sub-modules inside projBody
-  var h = '';
-  
-  // === 低级作家 ===
-  h += '<div class="side-sec" style="margin:0;border-radius:0">';
-  h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)" style="padding:6px 8px"><span>✍️ 低级作家 <span style="font-size:10px;color:var(--text-secondary)" id="rvBadge">'+(p.rvEntries||[]).length+'</span></span><span class="arr">▼</span></div>';
-  h += '<div class="side-sec-body hidden" style="padding:4px">';
-  h += '<div class="review-list" id="rvList"></div>';
-  h += '<div class="review-form">';
-  h += '<textarea id="rvText" placeholder="粘贴有问题的描写..."></textarea>';
-  h += '<select id="rvReason" onchange="onRvReason()"><option value="">-- 选择原因 --</option></select><div class="tag-chips" id="rvTagChips"></div>';
-  h += '<div style="display:flex;gap:4px;margin-bottom:4px"><input type="text" id="rvNewReason" placeholder="或输入新原因..."><button class="btn-sm" style="padding:5px 10px;font-size:11px" onclick="addRvReason()">+</button></div>';
-  h += '<div style="display:flex;gap:4px"><button class="btn-sm" id="btnRvAdd" onclick="submitReview()" style="flex:1">📌 记录并分析</button><button class="btn-sm" onclick="editReviewPrompt()" title="编辑分析Prompt" style="padding:5px 8px;font-size:11px">✏️</button><button class="btn-prp" onclick="genNegPrompt()" style="flex:1">🧪 负Prompt</button></div>';
-  h += '</div></div></div>';
-  
-  // === 高级作家 ===
-  h += '<div class="side-sec" style="margin:0;border-radius:0">';
-  h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)" style="padding:6px 8px"><span>🏆 高级作家 <span style="font-size:10px;color:var(--text-secondary)" id="gvBadge">'+(p.gvEntries||[]).length+'</span></span><span class="arr">▼</span></div>';
-  h += '<div class="side-sec-body hidden" style="padding:4px">';
-  h += '<div class="good-list" id="gvList"></div>';
-  h += '<div class="good-form">';
-  h += '<textarea id="gvText" placeholder="粘贴好的描写..."></textarea>';
-  h += '<select id="gvReason" onchange="onGvReason()"><option value="">-- 选择标签 --</option></select><div class="tag-chips" id="gvTagChips"></div>';
-  h += '<div style="display:flex;gap:4px;margin-bottom:4px"><input type="text" id="gvNewReason" placeholder="或输入新标签..."><button class="btn-sm" style="padding:5px 10px;font-size:11px" onclick="addGvReason()">+</button></div>';
-  h += '<div style="display:flex;gap:4px"><button class="btn-sm" id="btnGvAdd" onclick="submitGood()" style="flex:1">📌 记录并分析</button><button class="btn-sm" onclick="editGoodPrompt()" title="编辑分析Prompt" style="padding:5px 8px;font-size:11px">✏️</button><button class="btn-prp" onclick="genPosPrompt()" style="flex:1">✨ 正Prompt</button></div>';
-  h += '</div></div></div>';
-  
-  // === 长期记忆 ===
-  h += '<div class="side-sec" style="margin:0;border-radius:0">';
-  h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)" style="padding:6px 8px"><span>🧠 长期记忆</span><span class="arr">▼</span></div>';
-  h += '<div class="side-sec-body hidden" style="padding:4px">';
-  h += '<div id="memList"></div>';
-  h += '<div style="display:flex;flex-direction:column;gap:4px;padding:4px"><input type="text" id="memProjName" placeholder="新建记忆项目..."><button class="btn-sm" onclick="addMemProj()" style="width:100%">＋ 新建项目</button></div>';
-  h += '</div></div>';
-  
-  // === 世界观数据 ===
-  h += '<div class="side-sec" style="margin:0;border-radius:0">';
-  h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)" style="padding:6px 8px"><span>🌍 世界观数据</span><span class="arr">▼</span></div>';
-  h += '<div class="side-sec-body hidden" style="padding:4px">';
-  h += '<div style="display:flex;flex-direction:column;gap:6px;padding:4px">';
-  h += '<button class="btn-sm" onclick="compressContext()" style="width:100%;padding:8px;font-size:12px;font-weight:600">🗜️ 压缩上下文</button>';
-  h += '<div style="display:flex;gap:4px"><button class="btn-sm" onclick="openPromptEditor()" style="flex:1;padding:6px;font-size:11px">✏️ 编辑Prompt</button><button class="btn-sm" onclick="openLastLorebook()" style="flex:1;padding:6px;font-size:11px">📖 打开提取列表</button></div>';
-  h += '</div>';
-  h += '<div style="border-top:1px solid var(--border);margin:4px 0"></div>';
-  h += '<div id="lorebookList"><div style="font-size:11px;color:var(--text-secondary);padding:8px;text-align:center">暂无保存的世界观数据</div></div>';
-  h += '</div></div>';
-  
-  container.innerHTML = h;
-  
-  // Now populate the sub-modules with data
-  renderRvReasons(); renderRVs(); renderGvReasons(); renderGVs(); renderMems(); renderLorebookList();
+  // Sub-modules now rendered inline in renderProjects
+﻿  renderProjectConversations(); renderRvReasons(); renderRVs(); renderGvReasons(); renderGVs(); renderMems(); renderLorebookList();
+}
+
+function renderProjectData(pid){
+  if(!pid && st.activeProject) pid = st.activeProject;
+  if(!pid) return;
+  var p = st.projects.find(function(x){return x.id===pid});
+  if(!p) return;
+  var convEl = G("projConv-"+pid);
+  if(convEl){
+    var list = p.conversations||[];
+    if(!list.length) convEl.innerHTML="<div style=\"padding:8px;text-align:center;font-size:11px;color:var(--text-secondary)\">\u6682\u65e0\u4fdd\u5b58\u7684\u5bf9\u8bdd</div>";
+    else convEl.innerHTML=list.map(function(c,i){return "<div style=\"display:flex;align-items:center;gap:5px;padding:6px 4px;border-bottom:1px solid var(--border)\"><button class=\"btn-sm\" onclick=\"openProjectConversation(\'"+pid+"\',"+i+")\" style=\"flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap\">\u{1f4ac} "+esc(c.title||"\u672a\u547d\u540d\u5bf9\u8bdd")+"</button><button class=\"btn-sm\" onclick=\"removeProjectConversation(\'"+pid+"\',"+i+",event)\" style=\"padding:3px 6px;color:#e05555;background:transparent\">\u2715</button></div>"}).join("");
+  }
+  var rvEl = G("rvList-"+pid);
+  if(rvEl){
+    var rvList = p.rvEntries||[];
+    rvEl.innerHTML=rvList.length?rvList.map(function(e){return "<div class=\"writer-record\" title=\""+esc(e.text)+"\"><span class=\"writer-record-num\">#"+e.num+"</span><span class=\"writer-record-text\">"+esc(e.text)+"</span><button class=\"review-entry-del\" onclick=\"delRv(\'"+e.id+"\')\">\u2715</button></div>"}).join(""):"<div class=\"empty-compact\">\u6682\u65e0\u8bb0\u5f55</div>";
+  }
+  var gvEl = G("gvList-"+pid);
+  if(gvEl){
+    var gvList = p.gvEntries||[];
+    gvEl.innerHTML=gvList.length?gvList.map(function(e){return "<div class=\"writer-record\" title=\""+esc(e.text)+"\"><span class=\"writer-record-num\">#"+e.num+"</span><span class=\"writer-record-text\">"+esc(e.text)+"</span><button class=\"review-entry-del\" onclick=\"delGv(\'"+e.id+"\')\">\u2715</button></div>"}).join(""):"<div class=\"empty-compact\">\u6682\u65e0\u8bb0\u5f55</div>";
+  }
+  var memEl = G("memList-"+pid);
+  if(memEl){
+    var memProjects = p.memories||[];
+    if(!memProjects.length) memEl.innerHTML="<div style=\"padding:16px;text-align:center;font-size:12px;color:var(--text-secondary)\">\u6682\u65e0</div>";
+    else memEl.innerHTML=memProjects.map(function(memProj){var items=memProj.items||[], mpid=esc(memProj.id);return "<div class=\"mem-proj\"><div class=\"mem-proj-hdr\" id=\"memhdr-"+pid+"-"+mpid+"\" onclick=\"toggleMemProj(\'"+pid+"\',\'"+mpid+"\')\"><span>\u{1f4c1} "+esc(memProj.name||"\u672a\u547d\u540d\u8bb0\u5fc6")+" ("+items.length+")</span><span style=\"display:flex;align-items:center;gap:6px\"><span class=\"arr\">\u25bc</span><button style=\"background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:11px\" onclick=\"event.stopPropagation();delMemProj(\'"+pid+"\',\'"+mpid+"\')\">\u2715</button></span></div><div class=\"mem-proj-body\" id=\"membody-"+pid+"-"+mpid+"\">"+(items.length?items.map(function(item){var iid=esc(item.id);return "<div class=\"mem-item\"><span class=\"mem-item-txt\">"+esc(item.content||"")+"</span><button class=\"mem-item-del\" onclick=\"delMemItem(\'"+pid+"\',\'"+mpid+"\',\'"+iid+"\')\">\u2715</button></div>"}).join(""):"<div style=\"padding:8px;font-size:11px;color:var(--text-secondary)\">\u6682\u65e0\u8bb0\u5fc6</div>")+"<div class=\"mem-add-row\"><input type=\"text\" id=\"meminput-"+pid+"-"+mpid+"\" placeholder=\"\u6dfb\u52a0\u8bb0\u5fc6...\" onkeydown=\"if(event.key==='Enter')addMemItem(\'"+pid+"\',\'"+mpid+"\')\"><button class=\"btn-sm\" onclick=\"addMemItem(\'"+pid+"\',\'"+mpid+"\')\" style=\"padding:5px 10px;font-size:11px\">+</button></div></div></div>"}).join("");
+  }
+  var lbEl = G("lorebookList-"+pid);
+  if(lbEl){
+    var lbs = p.lorebooks||[];
+    if(!lbs.length) lbEl.innerHTML="<div style=\"font-size:11px;color:var(--text-secondary);padding:8px;text-align:center\">\u6682\u65e0\u4fdd\u5b58\u7684\u4e16\u754c\u89c2\u6570\u636e</div>";
+    else{var html2="";for(var k=0;k<lbs.length;k++){var lb=lbs[k];var c=lb.data.characters.length,s=lb.data.settings.length,p2=lb.data.plotPoints.length,w=lb.data.worldRules.length;var total=c+s+p2+w;var dt=new Date(lb.timestamp);var ds=dt.getMonth()+1+"/"+dt.getDate()+" "+dt.getHours()+":"+String(dt.getMinutes()).padStart(2,"0");html2+="<div class=\"lorebook-item\" style=\"padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;justify-content:space-between;align-items:center\" onclick=\"openLorebook(\'"+lb.id+"\')\"><div><div style=\"font-size:12px;font-weight:600\">"+esc(lb.name)+"</div><div style=\"font-size:10px;color:var(--text-secondary);margin-top:2px\">"+ds+" · \u{1f464}"+c+" \u{1f4cd}"+s+" \u{1f4cc}"+p2+" \u{1f30d}"+w+" ("+total+"\u5361\u7247)</div></div><button class=\"btn-sm\" onclick=\"event.stopPropagation();delLorebook(\'"+lb.id+"\')\" style=\"padding:2px 6px;font-size:10px;background:transparent;color:#e05555;border:1px solid #e05555;border-radius:4px;cursor:pointer\">\u2715</button></div>";}lbEl.innerHTML=html2;}
+  }
+}
+
+function addMemProj(pid){
+  var input=G('memProjName-'+pid), name=input&&input.value.trim();
+  if(!name){toast('请输入名称','error');return}
+  var p=st.projects.find(function(x){return x.id===pid});
+  if(!p){toast('工程不存在','error');return}
+  p.memories=p.memories||[];
+  p.memories.push({id:Date.now().toString(36),name:name,items:[]});
+  input.value=''; save(); renderProjects(); renderProjectData(pid); toast('已创建','success');
+}
+function delMemProj(pid, mpid){
+  if(!confirm('删除项目及所有记忆？'))return;
+  var p=st.projects.find(function(x){return x.id===pid});
+  if(!p)return;
+  p.memories=(p.memories||[]).filter(function(project){return project.id!==mpid});
+  save(); renderProjects(); renderProjectData(pid);
+}
+function toggleMemProj(pid, mpid){
+  var body=G('membody-'+pid+'-'+mpid), header=G('memhdr-'+pid+'-'+mpid);
+  if(body)body.classList.toggle('open');
+  if(header)header.classList.toggle('collapsed');
+}
+function addMemItem(pid, mpid){
+  var input=G('meminput-'+pid+'-'+mpid), content=input&&input.value.trim();
+  if(!content)return;
+  var p=st.projects.find(function(x){return x.id===pid});
+  if(!p)return;
+  var project=(p.memories||[]).find(function(item){return item.id===mpid});
+  if(!project)return;
+  project.items=project.items||[];
+  project.items.push({id:Date.now().toString(36),content:content,date:new Date().toISOString()});
+  input.value=''; save(); renderProjects(); renderProjectData(pid);
+  var body=G('membody-'+pid+'-'+mpid), header=G('memhdr-'+pid+'-'+mpid);
+  if(body)body.classList.add('open');
+  if(header)header.classList.remove('collapsed');
+}
+function delMemItem(pid,mpid,iid){
+  var p=st.projects.find(function(x){return x.id===pid});
+  if(!p)return;
+  var project=(p.memories||[]).find(function(item){return item.id===mpid});
+  if(!project)return;
+  project.items=(project.items||[]).filter(function(item){return item.id!==iid});
+  save(); renderProjects(); renderProjectData(pid);
+  var body=G('membody-'+pid+'-'+mpid);
+  if(body)body.classList.add('open');
+}
+function renderMems(){
+  var el=G('memList');
+  if(!el)return;
+  var projects=getMem()||[];
+  if(!projects.length){
+    el.innerHTML='<div style="padding:16px;text-align:center;font-size:12px;color:var(--text-secondary)">暂无</div>';
+    return;
+  }
+  el.innerHTML=projects.map(function(project){
+    var items=project.items||[], pid=esc(project.id);
+    return '<div class="mem-proj">'+
+      '<div class="mem-proj-hdr" id="memhdr-'+pid+'" onclick="toggleMemProj(\''+pid+'\')">'+
+        '<span>📁 '+esc(project.name||'未命名记忆')+' ('+items.length+')</span>'+ 
+        '<span style="display:flex;align-items:center;gap:6px"><span class="arr">▼</span><button style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:11px" onclick="event.stopPropagation();delMemProj(\''+pid+'\')">✕</button></span>'+ 
+      '</div>'+ 
+      '<div class="mem-proj-body" id="membody-'+pid+'">'+ 
+        (items.length?items.map(function(item){var iid=esc(item.id);return '<div class="mem-item"><span class="mem-item-txt">'+esc(item.content||'')+'</span><button class="mem-item-del" onclick="delMemItem(\''+pid+'\',\''+iid+'\')">✕</button></div>'}).join(''):'<div style="padding:8px;font-size:11px;color:var(--text-secondary)">暂无记忆</div>')+ 
+        '<div class="mem-add-row"><input type="text" id="meminput-'+pid+'" placeholder="添加记忆..." onkeydown="if(event.key===\'Enter\')addMemItem(\''+pid+'\')"><button class="btn-sm" onclick="addMemItem(\''+pid+'\')" style="padding:5px 10px;font-size:11px">+</button></div>'+ 
+      '</div>'+ 
+    '</div>';
+  }).join('');
+}
+
+var _projectSaveConversationId=null;
+function cloneConversationForProject(conv){
+  return JSON.parse(JSON.stringify({
+    id: conv.id,
+    sourceConversationId: conv.id,
+    title: conv.title || '未命名对话',
+    msgs: conv.msgs || [],
+    createdAt: conv.createdAt || Date.now(),
+    copiedAt: Date.now()
+  }));
+}
+function saveConversationById(id,e){
+  if(e)e.stopPropagation();
+  _projectSaveConversationId=id;
+  var conv=st.convs.find(function(x){return x.id===id});
+  if(!conv){toast('找不到这条对话','error');return}
+  if(!st.projects.length){toast('请先创建书籍工程','error');return}
+  var list=G('projectConvModalList');
+  list.innerHTML=st.projects.map(function(p){
+    var checked=(p.conversations||[]).some(function(x){return x.sourceConversationId===conv.id || x.id===conv.id});
+    return '<label style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--border);cursor:pointer"><input type="checkbox" value="'+esc(p.id)+'" '+(checked?'checked':'')+'><span>📁 '+esc(p.name)+'</span><span style="margin-left:auto;font-size:11px;color:var(--text-secondary)">'+(p.conversations||[]).length+' 个对话</span></label>';
+  }).join('');
+  G('projectConvModal').classList.remove('hidden');
+}
+function saveActiveConversationToProject(){
+  _projectSaveConversationId=getActive()&&getActive().id;
+  var conv=getActive();
+  if(!conv){toast('当前没有可保存的对话','error');return}
+  if(!st.projects.length){toast('请先创建书籍工程','error');return}
+  var list=G('projectConvModalList');
+  if(!list)return;
+  list.innerHTML=st.projects.map(function(p){
+    var checked=(p.conversations||[]).some(function(c){return c.sourceConversationId===conv.id || c.id===conv.id});
+    return '<label style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--border);cursor:pointer"><input type="checkbox" value="'+esc(p.id)+'" '+(checked?'checked':'')+'><span>📁 '+esc(p.name)+'</span><span style="margin-left:auto;font-size:11px;color:var(--text-secondary)">'+(p.conversations||[]).length+' 个对话</span></label>';
+  }).join('');
+  G('projectConvModal').classList.remove('hidden');
+}
+function closeProjectConvModal(){_projectSaveConversationId=null;G('projectConvModal').classList.add('hidden')}
+function confirmSaveConversationToProjects(){
+  var conv=st.convs.find(function(x){return x.id===_projectSaveConversationId})||getActive();
+  if(!conv)return;
+  var checks=G('projectConvModalList').querySelectorAll('input[type=checkbox]');
+  var saved=0;
+  checks.forEach(function(input){
+    var p=st.projects.find(function(x){return x.id===input.value});
+    if(!p)return;
+    p.conversations=p.conversations||[];
+    var index=p.conversations.findIndex(function(c){return c.sourceConversationId===conv.id || c.id===conv.id});
+    if(input.checked){
+      if(index<0){p.conversations.push(cloneConversationForProject(conv));saved++;}
+      else{p.conversations[index]=cloneConversationForProject(conv);}
+    }else if(index>=0){p.conversations.splice(index,1);}
+  });
+  save(); closeProjectConvModal(); renderProjects(); renderProjBody();
+  toast(saved?'已保存到 '+saved+' 个书籍工程':'书籍工程已更新','success');
+}
+function renderProjectConversations(){
+  var el=G('projectConvList');
+  var p=getActiveProject();
+  if(!el||!p)return;
+  var list=p.conversations||[];
+  if(!list.length){el.innerHTML='<div style="padding:8px;text-align:center;font-size:11px;color:var(--text-secondary)">暂无保存的对话</div>';return;}
+  el.innerHTML=list.map(function(c,i){
+    return '<div style="display:flex;align-items:center;gap:5px;padding:6px 4px;border-bottom:1px solid var(--border)"><button class="btn-sm" onclick="openProjectConversation(\''+p.id+'\','+i+')" style="flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">💬 '+esc(c.title||'未命名对话')+'</button><button class="btn-sm" onclick="removeProjectConversation(\''+p.id+'\','+i+',event)" style="padding:3px 6px;color:#e05555;background:transparent">✕</button></div>';
+  }).join('');
+}
+function openProjectConversation(projectId,index){
+  var p=st.projects.find(function(x){return x.id===projectId});
+  var source=p&&p.conversations&&p.conversations[index];
+  if(!source)return;
+  var copy=JSON.parse(JSON.stringify(source));
+  copy.id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  copy.sourceProjectId=projectId;
+  copy.sourceConversationId=source.sourceConversationId||source.id;
+  copy.title=(source.title||'未命名对话')+'（工程副本）';
+  st.convs.unshift(copy); st.activeCid=copy.id; save(); renderAll(); scrollBottom();
+  toast('已加载工程对话副本','success');
+}
+function removeProjectConversation(projectId,index,e){
+  if(e)e.stopPropagation();
+  var p=st.projects.find(function(x){return x.id===projectId});
+  if(!p||!p.conversations)return;
+  p.conversations.splice(index,1); save(); renderProjects(); renderProjBody();
+}
+
+var _projectContextAction=null;
+function openProjectContextAction(action){
+  if(!_memText){toast('请先选中文本','error');return}
+  if(!st.projects.length){toast('请先创建书籍工程','error');return}
+  if(action==='review'||action==='good'){
+    G('ctxMenu').classList.remove('show');
+    openWriterModal(action,_memText,st.activeProject);
+    return;
+  }
+  _projectContextAction=action;
+  var title={review:'🏴 标记到低级作家',good:'🏆 标记到高级作家',memory:'🧠 添加至长期记忆'}[action]||'选择书籍工程';
+  G('projectContextTitle').textContent=title;
+  G('projectContextHint').textContent=action==='memory'?'选择一个书籍工程，将选中文本写入其长期记忆。':'选择一个书籍工程，将选中文本写入其对应属性。';
+  G('projectContextList').innerHTML=st.projects.map(function(p){return '<label style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--border);cursor:pointer"><input type="radio" name="projectContextChoice" value="'+esc(p.id)+'" '+(p.id===st.activeProject?'checked':'')+'><span>📁 '+esc(p.name)+'</span></label>';}).join('');
+  G('projectContextModal').classList.remove('hidden');
+}
+function closeProjectContextModal(){_projectContextAction=null;G('projectContextModal').classList.add('hidden')}
+function confirmProjectContextAction(){
+  var selected=G('projectContextList').querySelector('input[name="projectContextChoice"]:checked');
+  var p=selected&&st.projects.find(function(x){return x.id===selected.value});
+  if(!p){toast('请选择书籍工程','error');return}
+  var text=_memText;
+  if(!text){closeProjectContextModal();return}
+  var action=_projectContextAction;
+  st.activeProject=p.id;save();closeProjectContextModal();G('ctxMenu').classList.remove('show');
+  renderProjects();renderProjBody();
+  setTimeout(function(){
+    if(action==='review'||action==='good'){
+      openWriterModal(action,text,p.id);
+    }else if(action==='memory'){
+      p.memories=p.memories||[];var memory=p.memories[0];
+      if(!memory){memory={id:Date.now().toString(36),name:'右键收藏',items:[]};p.memories.push(memory)}
+      memory.items=memory.items||[];memory.items.push({id:Date.now().toString(36),content:text,date:new Date().toISOString()});
+      save();renderProjBody();toast('已添加到工程「'+p.name+'」的长期记忆','success');
+    }
+    _projectContextAction=null;
+    if(action==='memory')_memText='';
+  },0);
 }
 
 // ===== LEGACY BRIDGE: redirect st.rvEntries etc to active project =====
@@ -216,17 +463,16 @@ document.addEventListener('contextmenu', function(e){
   var menu = G('ctxMenu');
   menu.style.left = e.clientX + 'px';
   menu.style.top = e.clientY + 'px';
-  menu.classList.remove('hidden');
+  menu.classList.add('show');
   renderCtxSub();
 });
 document.addEventListener('click', function(e){
-  if(!e.target.closest('.ctx-menu')) G('ctxMenu').classList.add('hidden');
+  if(!e.target.closest('.ctx-menu')) G('ctxMenu').classList.remove('show');
 });
 
 function renderCtxSub(){
   var sub = G('ctxSub');
-  sub.innerHTML = '<div class="ctx-menu-sub-item" onclick="addToMemNew()">＋ 新建项目</div>' +
-    st.memories.map(function(p){return '<div class="ctx-menu-sub-item" onclick="addToMem(\''+p.id+'\')">📁 '+esc(p.name)+'</div>'}).join('');
+  sub.innerHTML = '<div class="ctx-menu-sub-item" onclick="openProjectContextAction(\'memory\')">📁 选择书籍工程...</div>';
 }
 
 function addToMem(pid){
@@ -234,7 +480,7 @@ function addToMem(pid){
   if(!p||!_memText) return;
   p.items.push({id:Date.now().toString(36),content:_memText,date:new Date().toISOString()});
   save(); toast('已添加到 '+p.name,'success');
-  G('ctxMenu').classList.add('hidden'); _memText='';
+  G('ctxMenu').classList.remove('show'); _memText='';
 }
 function addToMemNew(){
   if(!_memText) return;
@@ -242,7 +488,7 @@ function addToMemNew(){
   if(!name) return;
   var p = {id:Date.now().toString(36),name:name,items:[{id:Date.now().toString(36),content:_memText,date:new Date().toISOString()}]};
   st.memories.push(p); save(); toast('已创建并添加','success');
-  G('ctxMenu').classList.add('hidden'); _memText='';
+  G('ctxMenu').classList.remove('show'); _memText='';
 }
 
 function saveConvToMem(){
@@ -261,7 +507,7 @@ function saveConvToMem(){
   setTimeout(function(){
     menu.style.left = rect.left + 'px';
     menu.style.top = (rect.bottom + 4) + 'px';
-    menu.classList.remove('hidden');
+    menu.classList.add('show');
     renderCtxSub();
   }, 100);
 }
@@ -283,14 +529,14 @@ function saveQP(){
 }
 function editQP(id){var p=st.qps.find(p=>p.id===id);if(!p)return;qpEditingId=id;G('qpTitle').value=p.title;G('qpContent').value=p.content;G('qpSaveBtn').textContent='✓ 更新';G('qpCancelBtn').style.display='';G('qpContent').focus()}
 function cancelEditQP(){qpEditingId=null;G('qpTitle').value='';G('qpContent').value='';G('qpSaveBtn').textContent='＋ 新建并保存';G('qpCancelBtn').style.display='none'}
-function delQP(id){st.qps=st.qps.filter(p=>p.id!==id);save();renderQPs()}
+function delQP(id,e){if(e)e.stopPropagation();st.qps=st.qps.filter(p=>p.id!==id);save();renderQPs();toast('快捷提示词已删除','success')}
 function useQP(id){var p=st.qps.find(p=>p.id===id);if(p){userInput.value=p.content;userInput.focus();userInput.style.height='auto';userInput.style.height=Math.min(userInput.scrollHeight,150)+'px'}}
 function sendQP(id){var p=st.qps.find(p=>p.id===id);if(p){userInput.value=p.content;sendMsg()}}
 function renderQPs(){
   var el=G('qpList');
   if(!st.qps.length){el.innerHTML='<div style="padding:8px;font-size:11px;color:var(--text-secondary);text-align:center">暂无</div>';return}
   el.innerHTML=st.qps.map(p=>'<div class="qp-item" data-qpid="'+p.id+'" title="点击填入"><span class="qp-title">'+esc(p.title)+'</span><span class="qp-acts"><button class="qp-act send" data-send="'+p.id+'" title="粘贴并发送">▶</button><button class="qp-act edit" data-edit="'+p.id+'" title="编辑">✎</button><button class="qp-act del" data-del="'+p.id+'" title="删除">✕</button></span></div>').join('');
-  if(!el._b){el._b=true;el.addEventListener('click',function(e){var item=e.target.closest('.qp-item');if(!item)return;var id=item.dataset.qpid;if(e.target.closest('.qp-act.send'))sendQP(id);else if(e.target.closest('.qp-act.edit'))editQP(id);else if(e.target.closest('.qp-act.del'))delQP(id);else useQP(id)})}
+  if(!el._b){el._b=true;el.addEventListener('click',function(e){var item=e.target.closest('.qp-item');if(!item)return;var id=item.dataset.qpid;if(e.target.closest('.qp-act.send'))sendQP(id);else if(e.target.closest('.qp-act.edit'))editQP(id);else if(e.target.closest('.qp-act.del'))delQP(id,e);else useQP(id)})}
 }
 
 
@@ -320,28 +566,8 @@ async function syncPush(){
     else toast('上传失败 push='+d.push.ok+' commit='+d.commit.ok,'error');
   }catch(e){toast('上传失败: '+e.message,'error')}
 }
-async function syncDataUpload(){
-  if(!confirm('应用上传：将当前所有数据（对话、记忆、设置等）上传到 Gitee？')) return;
-  try{
-    var r=await fetch('/api/data/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:st,version:1,date:new Date().toISOString()})});
-    var d=await r.json();
-    if(d.saved) toast('应用数据已保存','success');
-    else toast('保存失败','error');
-  }catch(e){toast('上传失败: '+e.message,'error')}
-}
-async function syncDataDownload(){
-  if(!confirm('应用下载：从 Gitee 恢复数据？这将覆盖当前数据！')) return;
-  try{
-    var r=await fetch('/api/data/download');
-    var d=await r.json();
-    if(d.error){toast(d.error,'error');return}
-    if(d.data&&d.data.convs){
-      st=d.data;
-      save(); renderAll();
-      toast('应用数据已恢复','success');
-    }else{toast('无可用数据','error')}
-  }catch(e){toast('下载失败: '+e.message,'error')}
-}
+async function syncDataUpload(){if(!confirm("上传数据库到 Gitee？"))return;try{var r=await fetch("/api/sync/upload",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:st.settings.giteeToken,repo:st.settings.giteeRepo,branch:st.settings.giteeBranch})});var d=await r.json();if(d.ok)toast(d.message||"上传成功","success");else toast(d.error||"上传失败","error")}catch(e){toast("上传失败: "+e.message,"error")}}
+async function syncDataDownload(){if(!confirm("从 Gitee 恢复数据库？这将覆盖当前所有数据！"))return;try{var r=await fetch("/api/sync/download",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:st.settings.giteeToken,repo:st.settings.giteeRepo,branch:st.settings.giteeBranch})});var d=await r.json();if(d.ok){toast(d.message||"恢复成功","success");setTimeout(function(){location.reload()},1000)}else toast(d.error||"恢复失败","error")}catch(e){toast("下载失败: "+e.message,"error")}}
 
 // ===== CLOUD BACKUP =====
 var _backupConvIds = [];
@@ -604,7 +830,7 @@ function renderTokenInfo(){var conv=getActive();var info=calcTokens(conv);var pc
 
 // ===== RENDER =====
 function renderAll(){renderSidebar();renderChat();renderHeader();if(typeof renderMdlDrop==='function')renderMdlDrop();if(typeof updateRvBadge==='function')updateRvBadge();if(typeof updateGvBadge==='function')updateGvBadge();try{renderTokenInfo()}catch(e){}}
-function renderSidebar(){convListEl.innerHTML=st.convs.map(c=>'<div class="conv-item'+(c.id===st.activeCid?' active':'')+'" onclick="selConv(\''+c.id+'\')"><span class="conv-title">'+esc(c.title)+'</span><button class="conv-del" onclick="delConv(\''+c.id+'\',event)">✕</button></div>').join('')}
+function renderSidebar(){convListEl.innerHTML=st.convs.map(c=>'<div class="conv-item'+(c.id===st.activeCid?' active':'')+'" onclick="selConv(\''+c.id+'\')"><span class="conv-title">'+esc(c.title)+'</span><button class="conv-save" title="保存对话到书籍工程" onclick="saveConversationById(\''+c.id+'\',event)">📚</button><button class="conv-del" onclick="delConv(\''+c.id+'\',event)">✕</button></div>').join('')}
 function renderHeader(){mdlBadge.textContent=(st.settings.modelName||'未配置')+' ▾';var c=getActive();chatTitle.textContent=c?c.title:'新对话'}
 function renderChat(){
   var c=getActive();
@@ -714,6 +940,19 @@ function delMsg(e,i){e.stopPropagation();var c=getActive();if(!c)return;c.msgs.s
 
 // ===== SEND =====
 function onInputKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg()}}
+
+function stopStream(){
+  if(_streamAbort){_streamAbort.abort();_streamAbort=null;}
+  streaming=false;
+  sendBtn.classList.remove('loading');
+  sendBtn.disabled=false;
+  sendBtn.querySelector('.btn-text').textContent='发送';
+  sendBtn.onclick=sendMsg;
+  userInput.focus();
+  save();
+  renderAll();
+  scrollBottom();
+}
 
 function stopStream(){
   if(_streamAbort){_streamAbort.abort();_streamAbort=null;}

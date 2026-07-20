@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=mrrezuvl">
+<link rel="stylesheet" href="css/style.css?v=writer-modal-final-20260719">
 </head>
 <body class="dark">
 <div class="app">
@@ -171,9 +171,30 @@
   </div>
 </div>
 
-<script src="js/main.js?v=mrrezuvl"></script>
-<script src="js/review.js?v=mrrezuvl"></script>
-<script src="js/lorebook.js?v=mrrezuvl"></script>
+<!-- Writer Modal -->
+<div class="modal-overlay hidden" id="writerModal" onclick="if(event.target===this)closeWriterModal()">
+  <div class="modal writer-modal">
+    <div class="writer-modal-head"><div id="writerModalTitle">✍️ 作家分析</div><button class="btn-sm" onclick="closeWriterModal()">✕</button></div>
+    <div class="writer-modal-grid">
+      <label>书籍工程<select id="writerProjectChoice"></select></label>
+      <label>选择原因（可多选）<select id="writerReasonTags" multiple size="4"></select></label>
+      <div class="writer-new-reason"><input id="writerNewReason" placeholder="输入原因并新增标签"><button class="btn-sm" onclick="addWriterReason()">＋</button></div>
+      <label class="writer-field-full">当前描写<textarea id="writerText" placeholder="当前描写"></textarea></label>
+      <label>前文<textarea id="writerBefore" placeholder="可选；默认从当前对话推断"></textarea></label>
+      <label>后文<textarea id="writerAfter" placeholder="可选；默认从当前对话推断"></textarea></label>
+      <label class="writer-field-full">AI分析<textarea id="writerAnalysis" readonly placeholder="点击"记录并分析"后显示结果"></textarea></label>
+    </div>
+    <div class="writer-modal-foot">
+      <button class="btn-sm" id="writerPromptBtn" onclick="writerPromptAction()">🧪 负Prompt</button>
+      <button class="btn-sm" onclick="closeWriterModal()">取消</button>
+      <button class="btn-sm writer-save-btn" id="writerSaveBtn" onclick="saveWriterAnalysis()">📌 记录并分析</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/main.js?v=writer-modal-final-20260719"></script>
+<script src="js/review.js?v=writer-modal-final-20260719"></script>
+<script src="js/lorebook.js?v=writer-modal-final-20260719"></script>
 
 <!-- Settings Modal -->
 <div class="modal-overlay hidden" id="settingsModal" class="hidden">

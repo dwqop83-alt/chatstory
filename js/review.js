@@ -1,155 +1,155 @@
 // ===== REVIEW (低级作家) =====
-function renderRvReasons(){G('rvReason').innerHTML='<option value="">-- 选择原因 --</option>'+st.rvReasons.map(r=>'<option>'+esc(r)+'</option>').join('')}
+function normalizeReasons(value){return Array.isArray(value)?value.filter(Boolean):(value?[value]:[])}
+function reasonStore(kind){return kind==='good'?st.gvReasons:st.rvReasons}
+function selectedReasonValues(kind){var id=kind==='good'?'gvReasonTags':'rvReasonTags';var el=G(id);if(!el)return[];return Array.from(el.querySelectorAll('option:checked')).map(function(x){return x.value})}
+function writerReasonValues(){var el=G('writerReasonTags');if(!el)return[];return Array.from(el.querySelectorAll('option:checked')).map(function(x){return x.value})}
+function renderReasonTags(kind){
+  var id=kind==='good'?'gvReasonTags':'rvReasonTags', list=reasonStore(kind)||[], el=G(id);if(!el)return;
+  el.innerHTML=list.map(function(r){return '<option value="'+esc(r)+'">'+esc(r)+'</option>'}).join('')||'<option disabled>暂无标签</option>';
+}
+function renderRvReasons(){renderReasonTags('review')}
+function renderGvReasons(){renderReasonTags('good')}
 function onRvReason(){}
-function addRvReason(){var v=G('rvNewReason').value.trim();if(!v)return;if(!st.rvReasons.includes(v))st.rvReasons.push(v);save();renderRvReasons();G('rvReason').value=v;G('rvNewReason').value=''}function delRvReason(i){st.rvReasons.splice(i,1);save();renderRvReasons();toast('???','success')}function delGvReason(i){st.gvReasons.splice(i,1);save();renderGvReasons();toast('???','success')}
-function renderRVs(){
-  var el=G('rvList');
-  if(!st.rvEntries.length){el.innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">暂无记录</div>';return}
-  el.innerHTML=[...st.rvEntries].reverse().map(e=>'<div class="review-entry"><button class="review-entry-del" onclick="delRv(\''+e.id+'\')">✕</button><span class="review-entry-num">#'+e.num+'</span> <span class="review-entry-date">'+new Date(e.date).toLocaleString('zh-CN')+'</span><div class="review-entry-text">'+esc(e.text.slice(0,300))+(e.text.length>300?'...':'')+'</div><div class="review-entry-reason"><strong>原因：</strong>'+esc(e.reason)+'</div><div class="review-entry-ai"><strong>🤖 AI分析：</strong> <span class="rv-actions"><button class="rv-act" onclick="redoRvAI(\''+e.id+'\')" title="重新分析">🔄</button><button class="rv-act" onclick="editRvAI(\''+e.id+'\')" title="编辑">✏️</button></span><br><span id="rvai-'+e.id+'">'+esc(e.aiAnalysis)+'</span></div></div>').join('');
-}
-function delRv(id){if(!confirm('删除？'))return;st.rvEntries=st.rvEntries.filter(e=>e.id!==id);st.rvEntries.forEach((e,i)=>e.num=i+1);save();renderRVs();updateRvBadge()}
-function updateRvBadge(){try{var n=st.rvEntries.length;var b=G('rvBadge');if(b){b.textContent=n;b.style.display=n>0?'':'none'}}catch(e){}}
-async function submitReview(){
-  var text=G('rvText').value.trim(); if(!text){toast('请填内容','error');return}
-  var reason=G('rvReason').value||G('rvNewReason').value.trim();
-  if(!reason){toast('请填原因','error');return}
-  if(reason&&!st.rvReasons.includes(reason)){st.rvReasons.push(reason)}
-  var btn=G('btnRvAdd'); btn.disabled=true; btn.textContent='⏳ 分析中...';
-  var ai='';
-  try{ai=await callAI(text,reason)}catch(e){ai='(失败: '+e.message+')'}
-  st.rvEntries.push({id:Date.now().toString(36),num:st.rvEntries.length+1,text,reason,date:new Date().toISOString(),aiAnalysis:ai});
-  G('rvText').value=''; G('rvReason').value=''; save(); renderRVs(); updateRvBadge(); renderRvReasons(); renderRvReasons();
-  btn.disabled=false; btn.textContent='📌 记录并分析'; toast('已记录','success');
-}
-async function callAI(text,reason){
-  var s=st.settings; if(!s.apiBaseUrl||!s.apiKey)throw new Error('未配置API');
-  var def='标记内容："""{text}"""\n问题：{reason}\n总结一条负向规则（不应做的事），只输出规则';
-  var up=(s.reviewUserPrompt||def).replace('{text}',text.slice(0,500)).replace('{reason}',reason);
-  var r=await fetch(s.apiBaseUrl.replace(/\/+$/,'')+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.apiKey},body:JSON.stringify({model:s.modelName,messages:[{role:'system',content:'你是审核助手'},{role:'user',content:up}],max_tokens:200,temperature:0.3})});
-  if(!r.ok){var t=await r.text(); var m=t; try{m=JSON.parse(t).error?.message||t}catch(_){} throw new Error(m)}
-  var d=await r.json(); return d.choices?.[0]?.message?.content?.trim()||'(无结果)';
-}
-function editReviewPrompt(){
-  var def='标记内容："""{text}"""\n问题：{reason}\n总结一条负向规则（不应做的事），只输出规则';
-  var current=st.settings.reviewUserPrompt||def;
-  var v=prompt('编辑低级作家分析 Prompt（{text}和{reason}会被替换）:',current);
-  if(v===null)return;
-  if(!v.trim()||v===def){st.settings.reviewUserPrompt=''}else{st.settings.reviewUserPrompt=v}
-  save(); toast('Prompt已更新','success');
-}
-function editGoodPrompt(){
-  var def='优秀描写："""{text}"""\n标签：{reason}\n总结一条正向规则（应该效仿的技巧），只输出规则';
-  var current=st.settings.goodUserPrompt||def;
-  var v=prompt('编辑高级作家分析 Prompt（{text}和{reason}会被替换）:',current);
-  if(v===null)return;
-  if(!v.trim()||v===def){st.settings.goodUserPrompt=''}else{st.settings.goodUserPrompt=v}
-  save(); toast('Prompt已更新','success');
-}
-async function redoRvAI(id){
-  var e=st.rvEntries.find(function(x){return x.id===id}); if(!e)return;
-  var el=document.getElementById('rvai-'+id); if(!el)return;
-  el.textContent='⏳ 重新分析中...';
-  try{var ai=await callAI(e.text,e.reason); e.aiAnalysis=ai; save(); el.textContent=ai; toast('已重新分析','success')}
-  catch(err){el.textContent=e.aiAnalysis; toast('分析失败','error')}
-}
-function editRvAI(id){
-  var e=st.rvEntries.find(function(x){return x.id===id}); if(!e)return;
-  var v=prompt('编辑AI分析结果:',e.aiAnalysis); if(v===null)return;
-  e.aiAnalysis=v; save();
-  var el=document.getElementById('rvai-'+id); if(el) el.textContent=v;
-  toast('已更新','success');
-}
-async function redoGvAI(id){
-  var e=st.gvEntries.find(function(x){return x.id===id}); if(!e)return;
-  var el=document.getElementById('gvai-'+id); if(!el)return;
-  el.textContent='⏳ 重新分析中...';
-  try{var ai=await callGoodAI(e.text,e.reason); e.aiAnalysis=ai; save(); el.textContent=ai; toast('已重新分析','success')}
-  catch(err){el.textContent=e.aiAnalysis; toast('分析失败','error')}
-}
-function editGvAI(id){
-  var e=st.gvEntries.find(function(x){return x.id===id}); if(!e)return;
-  var v=prompt('编辑AI分析结果:',e.aiAnalysis); if(v===null)return;
-  e.aiAnalysis=v; save();
-  var el=document.getElementById('gvai-'+id); if(el) el.textContent=v;
-  toast('已更新','success');
-}
-function genNegPrompt(){
-  if(!st.rvEntries.length){toast('无记录','error');return}
-  var seen=new Set(), rules=[];
-  for(var e of st.rvEntries){if(e.aiAnalysis&&!e.aiAnalysis.startsWith('(失败')){if(!seen.has(e.aiAnalysis)){seen.add(e.aiAnalysis);rules.push(e.aiAnalysis)}}}
-  var p='# 负向提示词\n基于'+st.rvEntries.length+'条记录\n\n应避免：\n\n'+rules.map(r=>'- '+r).join('\n')+'\n\n## 摘要\n'+st.rvEntries.map(e=>'- #'+e.num+' ['+e.reason+'] '+e.text.slice(0,60).replace(/\n/g,' ')).join('\n');
-  G('negPromptText').textContent=p; G('negModal').classList.remove('hidden');
-}
-function copyNeg(){navigator.clipboard.writeText(G('negPromptText').textContent).then(()=>toast('已复制','success'))}
-
-// ===== GOOD (高级作家) =====
-function renderGvReasons(){G('gvReason').innerHTML='<option value="">-- 选择标签 --</option>'+st.gvReasons.map(r=>'<option>'+esc(r)+'</option>').join('')}
 function onGvReason(){}
-function addGvReason(){var v=G('gvNewReason').value.trim();if(!v)return;if(!st.gvReasons.includes(v))st.gvReasons.push(v);save();renderGvReasons();G('gvReason').value=v;G('gvNewReason').value=''}
-function renderGVs(){
-  var el=G('gvList');
-  if(!st.gvEntries.length){el.innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">暂无记录</div>';return}
-  el.innerHTML=[...st.gvEntries].reverse().map(e=>'<div class="good-entry"><button class="good-entry-del" onclick="delGv(\''+e.id+'\')">✕</button><span class="good-entry-num">#'+e.num+'</span> <span class="good-entry-date">'+new Date(e.date).toLocaleString('zh-CN')+'</span><div class="good-entry-text">'+esc(e.text.slice(0,300))+(e.text.length>300?'...':'')+'</div><div class="good-entry-reason"><strong>标签：</strong>'+esc(e.reason)+'</div><div class="good-entry-ai"><strong>🤖 AI分析：</strong> <span class="rv-actions"><button class="rv-act" onclick="redoGvAI(\''+e.id+'\')" title="重新分析">🔄</button><button class="rv-act" onclick="editGvAI(\''+e.id+'\')" title="编辑">✏️</button></span><br><span id="gvai-'+e.id+'">'+esc(e.aiAnalysis)+'</span></div></div>').join('');
+function addReason(kind){
+  var id=kind==='good'?'gvNewReason':'rvNewReason', input=G(id), value=input&&input.value.trim();if(!value)return;
+  var list=reasonStore(kind);if(!list.includes(value))list.push(value);save();input.value='';kind==='good'?renderGvReasons():renderRvReasons();
+  var box=G(kind==='good'?'gvReasonTags':'rvReasonTags');var cb=box&&Array.from(box.querySelectorAll('option')).find(function(x){return x.value===value});if(cb)cb.selected=true;
 }
-function delGv(id){if(!confirm('删除？'))return;st.gvEntries=st.gvEntries.filter(e=>e.id!==id);st.gvEntries.forEach((e,i)=>e.num=i+1);save();renderGVs();updateGvBadge()}
-function updateGvBadge(){try{var n=st.gvEntries.length;var b=G('gvBadge');if(b){b.textContent=n;b.style.display=n>0?'':'none'}}catch(e){}}
-async function submitGood(){
-  var text=G('gvText').value.trim(); if(!text){toast('请填内容','error');return}
-  var reason=G('gvReason').value||G('gvNewReason').value.trim();
-  if(!reason){toast('请填标签','error');return}
-  if(reason&&!st.gvReasons.includes(reason)){st.gvReasons.push(reason)}
-  var btn=G('btnGvAdd'); btn.disabled=true; btn.textContent='⏳ 分析中...';
-  var ai='';
-  try{ai=await callGoodAI(text,reason)}catch(e){ai='(失败: '+e.message+')'}
-  st.gvEntries.push({id:Date.now().toString(36),num:st.gvEntries.length+1,text,reason,date:new Date().toISOString(),aiAnalysis:ai});
-  G('gvText').value=''; G('gvReason').value=''; save(); renderGVs(); updateGvBadge(); renderGvReasons(); renderGvReasons();
-  btn.disabled=false; btn.textContent='📌 记录并分析'; toast('已记录','success');
+function addRvReason(){addReason('review')}
+function addGvReason(){addReason('good')}
+function delRvReason(i){var list=reasonStore('review');list.splice(i,1);save();renderRvReasons()}
+function delGvReason(i){var list=reasonStore('good');list.splice(i,1);save();renderGvReasons()}
+function entryReasons(entry){return normalizeReasons(entry.reason)}
+function renderReasonText(entry){return entryReasons(entry).map(esc).join('、')}
+function renderCompactEntry(entry,kind){
+  return '<div class="writer-record" title="'+esc(entry.text)+'"><span class="writer-record-num">#'+entry.num+'</span><span class="writer-record-text">'+esc(entry.text)+'</span><button class="review-entry-del" onclick="'+(kind==='good'?'delGv':'delRv')+'(\''+entry.id+'\')">✕</button></div>';
 }
-async function callGoodAI(text,reason){
-  var s=st.settings; if(!s.apiBaseUrl||!s.apiKey)throw new Error('未配置API');
-  var def='优秀描写："""{text}"""\n标签：{reason}\n总结一条正向规则（应该效仿的技巧），只输出规则';
-  var up=(s.goodUserPrompt||def).replace('{text}',text.slice(0,500)).replace('{reason}',reason);
-  var r=await fetch(s.apiBaseUrl.replace(/\/+$/,'')+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.apiKey},body:JSON.stringify({model:s.modelName,messages:[{role:'system',content:'你是写作点评助手'},{role:'user',content:up}],max_tokens:200,temperature:0.3})});
-  if(!r.ok){var t=await r.text(); var m=t; try{m=JSON.parse(t).error?.message||t}catch(_){} throw new Error(m)}
-  var d=await r.json(); return d.choices?.[0]?.message?.content?.trim()||'(无结果)';
+function renderRVs(){var el=G("rvList");if(!el)return;var list=getRv()||[];el.innerHTML=list.length?[...list].reverse().map(function(e){return renderCompactEntry(e,'review')}).join(''):'<div class="empty-compact">暂无记录</div>'}
+function renderGVs(){var el=G("gvList");if(!el)return;var list=getGv()||[];el.innerHTML=list.length?[...list].reverse().map(function(e){return renderCompactEntry(e,'good')}).join(''):'<div class="empty-compact">暂无记录</div>'}
+function delRv(id){if(!confirm("删除？"))return;var p=getActiveProject();if(!p)return;var list=p.rvEntries||[];var idx=list.findIndex(function(e){return e.id===id});if(idx>=0)list.splice(idx,1);save();renderProjects();if(st.activeProject)renderProjectData(st.activeProject);updateRvBadge()}
+function delGv(id){if(!confirm("删除？"))return;var p=getActiveProject();if(!p)return;var list=p.gvEntries||[];var idx=list.findIndex(function(e){return e.id===id});if(idx>=0)list.splice(idx,1);save();renderProjects();if(st.activeProject)renderProjectData(st.activeProject);updateGvBadge()}
+function updateRvBadge(){var b=G("rvBadge");if(!b)return;var n=getRv().length;b.textContent=n;b.style.display=n?"":"none"}
+function updateGvBadge(){var b=G("gvBadge");if(!b)return;var n=getGv().length;b.textContent=n;b.style.display=n?"":"none"}
+function messageText(message){if(!message)return '';if(Array.isArray(message.content))return message.content.map(function(x){return x.type==='text'?x.text:(x.image_url?'[图片]':'')}).join(' ');return String(message.content||'')}
+function getMessageContext(text){
+  var conv=typeof getActive==='function'?getActive():null;if(!conv||!conv.msgs)return{before:'',after:''};
+  var index=-1;for(var i=0;i<conv.msgs.length;i++){var content=messageText(conv.msgs[i]);if(content===text||content.includes(text)){index=i;break}}
+  return{before:index>0?messageText(conv.msgs[index-1]):'',after:index>=0&&index<conv.msgs.length-1?messageText(conv.msgs[index+1]):''};
 }
+function analysisPrompt(text,reasons,kind,context){
+ var positive=kind==='good';var custom=positive?st.settings.goodUserPrompt:st.settings.reviewUserPrompt;
+ var def=positive?'请分析这段描写为什么好，结合标签、前文和后文，指出可复用的写作技巧。':'请分析这段描写为什么不好，结合标签、前文和后文，指出具体问题和改进方向。';
+ var prompt=(custom||def).replaceAll('{text}',text).replaceAll('{reason}',reasons.join('、')).replaceAll('{reasons}',reasons.join('、')).replaceAll('{before}',context.before||'无').replaceAll('{after}',context.after||'无');return prompt+'\n类型：'+(positive?'高级作家':'低级作家')+'\n标签：'+reasons.join('、')+'\n前文：'+(context.before||'无')+'\n当前描写：'+text+'\n后文：'+(context.after||'无')+'\n请给出具体、可执行的分析。';
+}
+async function requestWriterAI(text,reasons,kind,context){
+ var s=st.settings;if(!s.apiBaseUrl||!s.apiKey)throw new Error('未配置API');
+ var prompt=analysisPrompt(text,reasons,kind,context);
+ var r=await fetch(s.apiBaseUrl.replace(/\/+$/,'')+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.apiKey},body:JSON.stringify({model:s.modelName,messages:[{role:'system',content:kind==='good'?'你是高级写作分析助手':'你是低级写作分析助手'},{role:'user',content:prompt}],max_tokens:500,temperature:0.3})});
+ if(!r.ok){var t=await r.text();var msg=t;try{msg=JSON.parse(t).error?.message||t}catch(_){}throw new Error(msg)}var d=await r.json();return d.choices?.[0]?.message?.content?.trim()||'(无结果)';
+}
+async function submitReview(){return submitWriterEntry('review')}
+async function submitGood(){return submitWriterEntry('good')}
+async function submitWriterEntry(kind){
+ var text=G(kind==='good'?'gvText':'rvText').value.trim();if(!text){toast('请先填写描写','error');return}
+ var reasons=selectedReasonValues(kind);if(!reasons.length){toast(kind==='good'?'请选择至少一个标签':'请选择至少一个原因','error');return}
+ var btn=G(kind==='good'?'btnGvAdd':'btnRvAdd');if(btn){btn.disabled=true;btn.textContent='⏳ 分析中...'}
+ var ai='';try{ai=await requestWriterAI(text,reasons,kind,getMessageContext(text))}catch(e){ai='(失败: '+e.message+')'}
+ var list=kind==="good"?getGv():getRv();list.push({id:Date.now().toString(36),num:list.length+1,text:text,reason:reasons,date:new Date().toISOString(),aiAnalysis:ai});
+ G(kind==='good'?'gvText':'rvText').value='';save();kind==='good'?renderGVs():renderRVs();kind==='good'?updateGvBadge():updateRvBadge();if(btn){btn.disabled=false;btn.textContent='📌 记录并分析'}toast('已记录并分析','success');
+}
+
+var _writerModalKind='review';
+function writerKindLabel(kind){return kind==='good'?'🏆 高级作家':'✍️ 低级作家'}
+function writerEntries(kind,projectId){var project=projectId?st.projects.find(function(p){return p.id===projectId}):getActiveProject();return project?(kind==='good'?(project.gvEntries||[]):(project.rvEntries||[])):[]}
+function writerReasons(kind){return kind==='good'?st.gvReasons:st.rvReasons}
+function writerNextNumber(kind,projectId){var list=writerEntries(kind,projectId), max=0;list.forEach(function(e){max=Math.max(max,Number(e.num)||0)});return max+1}
+function populateWriterProjects(selectedId){
+  var el=G('writerProjectChoice');if(!el)return;
+  el.innerHTML=(st.projects||[]).map(function(p){return '<option value="'+esc(p.id)+'">📁 '+esc(p.name)+'</option>'}).join('');
+  if(selectedId)el.value=selectedId;else if(st.activeProject)el.value=st.activeProject;
+}
+function syncWriterReasonsToProject(){
+  var projectId=G('writerProjectChoice')&&G('writerProjectChoice').value;
+  var project=st.projects.find(function(p){return p.id===projectId});
+  if(!project)return;
+  var list=_writerModalKind==='good'?(project.gvReasons||[]):(project.rvReasons||[]);
+  var current=writerReasonValues();
+  G('writerReasonTags').innerHTML=list.map(function(r){return '<option value="'+esc(r)+'" '+(current.includes(r)?'selected':'')+'>'+esc(r)+'</option>'}).join('')||'<option disabled>暂无标签</option>';
+}
+function populateWriterReasons(selected){
+  var el=G('writerReasonTags');if(!el)return;var values=selected||[];
+  el.innerHTML=(writerReasons(_writerModalKind)||[]).map(function(r){return '<option value="'+esc(r)+'" '+(values.includes(r)?'selected':'')+'>'+esc(r)+'</option>'}).join('')||'<option disabled>暂无标签</option>';
+}
+function addWriterReason(){
+  var input=G('writerNewReason'), value=input&&input.value.trim();if(!value)return;
+  var projectId=G('writerProjectChoice').value,project=st.projects.find(function(p){return p.id===projectId}),list=project?(_writerModalKind==='good'?(project.gvReasons=project.gvReasons||[],project.gvReasons):(project.rvReasons=project.rvReasons||[],project.rvReasons)):writerReasons(_writerModalKind);
+  if(!list.includes(value))list.push(value);save();if(input)input.value='';
+  var selected=writerReasonValues();if(!selected.includes(value))selected.push(value);populateWriterReasons(selected);
+}
+function openWriterModal(kind,text,projectId,entry){
+  if(!st.projects.length){toast('请先创建书籍工程','error');return}
+  _writerModalKind=kind==='good'?'good':'review';
+  G('writerModalTitle').textContent=writerKindLabel(_writerModalKind)+' · 分析并保存';
+  populateWriterProjects(projectId||(entry&&entry.projectId));
+  populateWriterReasons(entry?entry.reason:[]);syncWriterReasonsToProject();
+  var current=text||(entry&&entry.text)||'';
+  var context=getMessageContext(current);
+  G('writerText').value=current;G('writerBefore').value=(entry&&entry.before)||context.before||'';G('writerAfter').value=(entry&&entry.after)||context.after||'';G('writerAnalysis').value=(entry&&entry.aiAnalysis)||'';
+  G('writerSaveBtn').textContent=entry?'💾 保存修改':'📌 记录并分析';
+  G('writerPromptBtn').textContent=_writerModalKind==='good'?'✨ 正Prompt':'🧪 负Prompt';
+  G('writerProjectChoice').onchange=syncWriterReasonsToProject;
+  G('writerModal').classList.remove('hidden');
+}
+function closeWriterModal(){var el=G('writerModal');if(el)el.classList.add('hidden')}
+function writerPromptAction(){_writerModalKind==='good'?genPosPrompt():genNegPrompt()}
+async function saveWriterAnalysis(){
+  var kind=_writerModalKind,text=G('writerText').value.trim(),reasons=writerReasonValues(),projectId=G('writerProjectChoice').value;
+  if(!text){toast('请填写当前描写','error');return}
+  if(!reasons.length){toast('请选择至少一个标签','error');return}
+  var btn=G('writerSaveBtn');if(btn){btn.disabled=true;btn.textContent='⏳ 分析中...'}
+  var context={before:G('writerBefore').value.trim(),after:G('writerAfter').value.trim()},ai='';
+  try{ai=await requestWriterAI(text,reasons,kind,context)}catch(e){ai='(失败: '+e.message+')'}
+  var list=writerEntries(kind,projectId), entry={id:Date.now().toString(36),num:writerNextNumber(kind,projectId),text:text,reason:reasons,date:new Date().toISOString(),aiAnalysis:ai,before:context.before,after:context.after,projectId:projectId};
+  var project=st.projects.find(function(p){return p.id===projectId});
+  if(!project){toast('书籍工程不存在','error');if(btn){btn.disabled=false;btn.textContent='📌 记录并分析'};return}
+  st.activeProject=projectId;
+  if(kind==='good')project.gvEntries=project.gvEntries||[],project.gvEntries.push(entry);else project.rvEntries=project.rvEntries||[],project.rvEntries.push(entry);
+  save();closeWriterModal();renderProjects();renderProjBody();renderRVs();renderGVs();updateRvBadge();updateGvBadge();
+  if(btn){btn.disabled=false;btn.textContent='📌 记录并分析'}toast('已分析并保存为 #'+entry.num,'success');
+}
+
+async function redoRvAI(id){var e=getRv().find(function(x){return x.id===id});if(!e)return;var el=document.getElementById("rvai-"+id);if(el)el.textContent="⏳";try{e.aiAnalysis=await requestWriterAI(e.text,entryReasons(e),"review",getMessageContext(e.text));save();if(el)el.textContent=e.aiAnalysis}catch(err){if(el)el.textContent="(失败: "+err.message+")"}}
+function editRvAI(id){var e=getRv().find(function(x){return x.id===id});if(!e)return;var v=prompt("编辑AI分析：",e.aiAnalysis||"");if(v!==null){e.aiAnalysis=v;save();renderRVs()}}
+async function redoGvAI(id){var e=getGv().find(function(x){return x.id===id});if(!e)return;var el=document.getElementById("gvai-"+id);if(el)el.textContent="⏳";try{e.aiAnalysis=await requestWriterAI(e.text,entryReasons(e),"good",getMessageContext(e.text));save();if(el)el.textContent=e.aiAnalysis}catch(err){if(el)el.textContent="(失败: "+err.message+")"}}
+function editGvAI(id){var e=getGv().find(function(x){return x.id===id});if(!e)return;var v=prompt("编辑AI分析：",e.aiAnalysis||"");if(v!==null){e.aiAnalysis=v;save();renderGVs()}}
+
+function genNegPrompt(){
+  var entries=getRv();if(!entries.length){toast("无记录","error");return}
+  var rules=entries.filter(function(e){return e.aiAnalysis&&!e.aiAnalysis.startsWith("(失败")}).map(function(e){return "- "+e.aiAnalysis}).join("\n");
+  var p="# 负向提示词\\n基于"+entries.length+"条记录\\n\\n应避免：\\n\\n"+rules+"\\n\\n## 摘要\\n"+entries.map(function(e){return "- #"+e.num+" ["+renderReasonText(e)+"] "+e.text.slice(0,60).replace(/\\n/g," ")}).join("\\n");
+  G("negPromptText").textContent=p;G("negModal").classList.add("show");
+}
+function copyNeg(){navigator.clipboard.writeText(G('negPromptText').textContent).then(function(){toast('已复制','success')})}
+function flagToGood(){openProjectContextAction('good')}
+
 function genPosPrompt(){
-  if(!st.gvEntries.length){toast('无记录','error');return}
-  var seen=new Set(), rules=[];
-  for(var e of st.gvEntries){if(e.aiAnalysis&&!e.aiAnalysis.startsWith('(失败')){if(!seen.has(e.aiAnalysis)){seen.add(e.aiAnalysis);rules.push(e.aiAnalysis)}}}
-  var p='# 正向提示词\n基于'+st.gvEntries.length+'条记录\n\n应效仿：\n\n'+rules.map(r=>'- '+r).join('\n')+'\n\n## 摘要\n'+st.gvEntries.map(e=>'- #'+e.num+' ['+e.reason+'] '+e.text.slice(0,60).replace(/\n/g,' ')).join('\n');
-  G('posPromptText').textContent=p; G('posModal').classList.remove('hidden');
+  var entries=getGv();if(!entries.length){toast("无记录","error");return}
+  var rules=entries.filter(function(e){return e.aiAnalysis&&!e.aiAnalysis.startsWith("(失败")}).map(function(e){return "- "+e.aiAnalysis}).join("\\n");
+  var p="# 正向提示词\\n基于"+entries.length+"条记录\\n\\n应效仿：\\n\\n"+rules+"\\n\\n## 摘要\\n"+entries.map(function(e){return "- #"+e.num+" ["+renderReasonText(e)+"] "+e.text.slice(0,60).replace(/\\n/g," ")}).join("\\n");
+  G("posPromptText").textContent=p;G("posModal").classList.add("show");
 }
-function copyPos(){navigator.clipboard.writeText(G('posPromptText').textContent).then(()=>toast('已复制','success'))}
-function flagToGood(){
-  if(!_memText) return;
-  G('gvText').value = _memText;
-  jumpTo('good');
-}
-// ===== LONG-TERM MEMORY =====
-function addMemProj(){
-  var n=G('memProjName').value.trim(); if(!n){toast('请输入名称','error');return}
-  st.memories.push({id:Date.now().toString(36),name:n,items:[]}); G('memProjName').value=''; save(); renderMems(); toast('已创建','success');
-}
-function delMemProj(id){if(!confirm('删除项目及所有记忆？'))return;st.memories=st.memories.filter(p=>p.id!==id);save();renderMems()}
-function toggleMemProj(id){G('membody-'+id).classList.toggle('open');G('memhdr-'+id).classList.toggle('collapsed')}
-function addMemItem(pid){var inp=G('meminput-'+pid);var c=inp.value.trim();if(!c)return;var p=st.memories.find(p=>p.id===pid);if(!p)return;p.items.push({id:Date.now().toString(36),content:c,date:new Date().toISOString()});inp.value='';save();renderMems();G('membody-'+pid).classList.add('open');G('memhdr-'+pid).classList.remove('collapsed')}
-function delMemItem(pid,iid){var p=st.memories.find(p=>p.id===pid);if(!p)return;p.items=p.items.filter(i=>i.id!==iid);save();renderMems();G('membody-'+pid).classList.add('open')}
-function renderMems(){
-  var el=G('memList');
-  if(!st.memories.length){el.innerHTML='<div style="padding:16px;text-align:center;font-size:12px;color:var(--text-secondary)">暂无</div>';return}
-  el.innerHTML=st.memories.map(p=>'<div class="mem-proj"><div class="mem-proj-hdr" id="memhdr-'+p.id+'" onclick="toggleMemProj(\''+p.id+'\')"><span>📁 '+esc(p.name)+' ('+p.items.length+')</span><span style="display:flex;align-items:center;gap:6px"><span class="arr">▼</span><button style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:11px" onclick="event.stopPropagation();delMemProj(\''+p.id+'\')">✕</button></span></div><div class="mem-proj-body" id="membody-'+p.id+'">'+(p.items.length?p.items.map(i=>'<div class="mem-item"><span class="mem-item-txt">'+esc(i.content)+'</span><button class="mem-item-del" onclick="delMemItem(\''+p.id+'\',\''+i.id+'\')">✕</button></div>').join(''):'<div style="padding:8px;font-size:11px;color:var(--text-secondary)">暂无记忆</div>')+'<div class="mem-add-row"><input type="text" id="meminput-'+p.id+'" placeholder="添加记忆..." onkeydown="if(event.key===\'Enter\')addMemItem(\''+p.id+'\')"><button class="btn-sm" onclick="addMemItem(\''+p.id+'\')" style="padding:5px 10px;font-size:11px">+</button></div></div></div>').join('');
-}
+function copyPos(){navigator.clipboard.writeText(G('posPromptText').textContent).then(function(){toast('已复制','success')})}
 
 // ===== MODEL DROPDOWN =====
 function toggleMdlDrop(e){e.stopPropagation();G('mdlDrop').classList.toggle('show')}
-function selChatModel(m){st.settings.modelName=m;save();renderAll();G('mdlDrop').classList.add('hidden')}
+function selChatModel(m){st.settings.modelName=m;save();renderAll();G('mdlDrop').classList.remove('show')}
 function renderMdlDrop(){
   var d=G('mdlDrop'), ms=st.settings.availModels||[], cur=st.settings.modelName;
   if(!ms.length){d.innerHTML='<div class="mdl-drop-item" style="color:var(--text-secondary)">无模型 - 在设置中获取</div>';return}
   d.innerHTML=ms.map(m=>'<div class="mdl-drop-item'+(m===cur?' active':'')+'" onclick="selChatModel(\''+m.replace(/'/g,"\\'")+'\')">'+m+'</div>').join('');
 }
-document.addEventListener('click',function(e){var d=G('mdlDrop'),w=document.querySelector('.mdl-badge-wrap');if(d&&w&&!w.contains(e.target))d.classList.add('hidden')});
+document.addEventListener('click',function(e){var d=G('mdlDrop'),w=document.querySelector('.mdl-badge-wrap');if(d&&w&&!w.contains(e.target))d.classList.remove('show')});
 
 // ===== FLAG & ATTACH =====
 function onAttach(e){
@@ -179,17 +179,15 @@ function msgToMem(e,i){
   setTimeout(function(){
     menu.style.left = rect.left + 'px';
     menu.style.top = (rect.bottom + 4) + 'px';
-    menu.classList.remove('hidden');
+    menu.classList.add('show');
     renderCtxSub();
   }, 100);
 }
 
 function flagToReview(){
-  if(!_memText) return;
-  G('rvText').value = _memText;
-  jumpTo('review');
+  openProjectContextAction('review');
 }
-function flagMsg(e,i){e.stopPropagation();var c=getActive();if(!c)return;var m=c.msgs[i];if(!m||m.role!=='assistant')return;G('rvText').value=m.content;jumpTo('review')}
+function flagMsg(e,i){e.stopPropagation();var c=getActive();if(!c)return;var m=c.msgs[i];if(!m||m.role!=='assistant')return;_memText=messageText(m);openProjectContextAction('review')}
 
 
 // ===== PUBLISH (GitHub API) =====
@@ -240,8 +238,3 @@ async function publishApp(){
     toast('❌ '+e.message,'error');
   }
 }
-
-// Call render functions after load
-if(typeof renderMdlDrop==='function')renderMdlDrop();
-if(typeof updateRvBadge==='function')updateRvBadge();
-if(typeof updateGvBadge==='function')updateGvBadge();
