@@ -157,7 +157,7 @@ function renderProjects(){
     h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)"><span>🧠 长期记忆</span><span class="arr">▼</span></div>';
     h += '<div class="side-sec-body hidden">';
     h += '<div class="memList" id="memList-'+p.id+'"></div>';
-    h += '<div style="display:flex;flex-direction:column;gap:4px;padding:4px"><input type="text" id="memProjName-'+p.id+'" placeholder="新建记忆项目..."><button class="btn-sm" onclick="addMemProj(\''+p.id+'\')" style="width:100%">＋ 新建项目</button></div>';
+    h += '<div style="';
     h += '</div></div>';
     h += '<div class="side-sec">';
     h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)"><span>🌍 世界观数据</span><span class="arr">▼</span></div>';
@@ -447,8 +447,145 @@ if(Object.defineProperty){
   Object.defineProperty(st, 'lorebook', { get: getLB, set: setLB, enumerable: true, configurable: true });
 }
 function newConv(){
+  var cb = document.getElementById('continuationMode');
+  if(cb && cb.checked){
+    openContinuationProjModal();
+    return;
+  }
   var c = {id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),title:'新对话',msgs:[],createdAt:Date.now()};
   st.convs.unshift(c); st.activeCid=c.id; save(); renderAll(); userInput.focus();
+}
+
+// ===== CONTINUATION MODE =====
+function openContinuationProjModal(){
+  renderContinuationProjList();
+  G('continuationProjModal').classList.remove('hidden');
+}
+function closeContinuationProjModal(){
+  G('continuationProjModal').classList.add('hidden');
+}
+function renderContinuationProjList(){
+  var el = G('continuationProjList');
+  if(!el) return;
+  if(!st.projects.length){
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary);font-size:12px">📁 请先创建书籍工程</div>';
+    return;
+  }
+  var h = '';
+  for(var i=0;i<st.projects.length;i++){
+    var p = st.projects[i];
+    h += '<div class="proj-select-item" onclick="selectContinuationProject(\''+p.id+'\')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">';
+    h += '<span style="font-size:14px">📁</span>';
+    h += '<div><div style="font-size:13px;font-weight:500">'+esc(p.name)+'</div>';
+    h += '<div style="font-size:10px;color:var(--text-secondary)">🧠'+(p.rvEntries?.length||0)+' 🏆'+(p.gvEntries?.length||0)+' 🧠'+(p.memories?.length||0)+' 🌍'+(p.lorebooks?.length||0)+'</div></div>';
+    h += '</div>';
+  }
+  el.innerHTML = h;
+}
+
+async function selectContinuationProject(pid){
+  closeContinuationProjModal();
+  var p = st.projects.find(function(x){return x.id===pid});
+  if(!p){toast('工程不存在','error');return}
+  var origTextEl = document.getElementById('continuationOriginalText');
+  var origText = origTextEl ? origTextEl.value.trim() : '';
+  var c = {id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),title:'续写:'+p.name,msgs:[],createdAt:Date.now(),continuationProjectId:pid,continuationOriginalText:origText};
+  st.convs.unshift(c); st.activeCid=c.id; save(); renderAll(); userInput.focus();
+  toast('已创建续写对话，正在生成续写内容...','success');
+  var cb = document.getElementById('continuationMode');
+  if(cb) cb.checked = false;
+  
+  if(origText){
+        userInput.value = origText + '\n\n' + '【续写要求】请从原文结尾处开始续写，严格按照以下要求：\n' +
+        '【对话要求】\n' +
+        '1. 第一句必须是：李慕白打量着眼前的老者。破旧道袍，发白的胡须，笑眯眯的眼睛里透着几分精明——典型的神棍形象。\n' +
+        '2. 第二句必须是："老先生能看出我有什么难处？"李慕白试探着问。\n' +
+        '3. 张陵回答："老夫观你面堂发暗，印堂带青，显然是刚刚经历了一场大变故。而且..."他凑近了些，压低声音，"你身上没有一丝灵力波动，却穿着青云宗外门弟子的服饰，想必是遇到了什么奇遇吧？"\n' +
+        '【情节要求】\n' +
+        '4. 李慕白心头一震，低头看袖口云纹图案，这才注意到是青云宗制服\n' +
+        '5. 张陵自称"张半仙"，以江湖神棍口吻说话\n' +
+        '6. 张陵收李慕白为帮手，包吃包住每月十两银子\n' +
+        '7. 白天跟张陵走街串巷学习风土人情，晚上琢磨修炼之路\n' +
+        '8. 世界设定：玄天大陆，修炼灵力，境界：练气、筑基、金丹、元婴、化神、大乘、渡劫\n' +
+        '9. 青云城是青云国边陲小城，隶属青云宗管辖，每年招收弟子\n' +
+        '【结尾要求】\n' +
+        '10. 结尾必须是：而此刻，在青云城的一间密室里，张陵正盘膝而坐，手中捏着一枚与李慕白那块一模一样的碧绿玉佩。他的眼神深邃，再无半分市井神棍的模样。"天机玉佩...重现人间了。"他喃喃自语，"看来，这片天要变了。"';
+    setTimeout(function(){ sendMsg(); }, 100);
+  }
+}
+
+function buildContinuationContext(pid){
+  var p = st.projects.find(function(x){return x.id===pid});
+  if(!p) return '';
+  var c = getActive();
+  var parts = [];
+  parts.push('【续写上下文】');
+  
+  if(c && c.continuationOriginalText){
+    parts.push('');
+    parts.push('=== 原文 ===');
+    parts.push(c.continuationOriginalText);
+  }
+  
+  var lbs = p.lorebooks || [];
+  if(lbs.length){
+    parts.push('');
+    parts.push('=== 世界观数据 ===');
+    for(var li=0;li<lbs.length;li++){
+      var lb = lbs[li];
+      if(lb.data){
+        if(lb.data.characters && lb.data.characters.length){
+          parts.push('【角色】');
+          for(var ci=0;ci<lb.data.characters.length;ci++){
+            var ch = lb.data.characters[ci];
+            parts.push('- '+ch.name+(ch.alias?'(又称'+ch.alias+')':'')+': '+ch.description);
+          }
+        }
+        if(lb.data.settings && lb.data.settings.length){
+          parts.push('【地点】');
+          for(var si=0;si<lb.data.settings.length;si++){
+            parts.push('- '+lb.data.settings[si].name+': '+lb.data.settings[si].description);
+          }
+        }
+      }
+    }
+  }
+  
+  var gvEntries = p.gvEntries || [];
+  if(gvEntries.length){
+    parts.push('');
+    parts.push('=== 高级作家 — 优秀描写 ===');
+    for(var gi=0;gi<gvEntries.length;gi++){
+      var gv = gvEntries[gi];
+      parts.push('【范例】'+esc(gv.content));
+    }
+  }
+  
+  var rvEntries = p.rvEntries || [];
+  if(rvEntries.length){
+    parts.push('');
+    parts.push('=== 低级作家 — 需要避免的描写 ===');
+    for(var ri=0;ri<rvEntries.length;ri++){
+      var rv = rvEntries[ri];
+      parts.push('【反例】'+esc(rv.content));
+    }
+  }
+  
+  var mems = p.memories || [];
+  if(mems.length){
+    parts.push('');
+    parts.push('=== 长期记忆 ===');
+    for(var mi=0;mi<mems.length;mi++){
+      var mem = mems[mi];
+      if(mem.items && mem.items.length){
+        for(var ii=0;ii<mem.items.length;ii++){
+          parts.push('  * '+esc(mem.items[ii].content));
+        }
+      }
+    }
+  }
+  
+  return parts.join('\\n');
 }
 function getActive(){return st.convs.find(c=>c.id===st.activeCid)||null}
 function delConv(id,e){e.stopPropagation();if(!confirm('删除对话？'))return;st.convs=st.convs.filter(c=>c.id!==id);if(st.activeCid===id)st.activeCid=st.convs[0]?.id||null;save();renderAll()}
@@ -530,7 +667,7 @@ function saveQP(){
 function editQP(id){var p=st.qps.find(p=>p.id===id);if(!p)return;qpEditingId=id;G('qpTitle').value=p.title;G('qpContent').value=p.content;G('qpSaveBtn').textContent='✓ 更新';G('qpCancelBtn').style.display='';G('qpContent').focus()}
 function cancelEditQP(){qpEditingId=null;G('qpTitle').value='';G('qpContent').value='';G('qpSaveBtn').textContent='＋ 新建并保存';G('qpCancelBtn').style.display='none'}
 function delQP(id,e){if(e)e.stopPropagation();st.qps=st.qps.filter(p=>p.id!==id);save();renderQPs();toast('快捷提示词已删除','success')}
-function useQP(id){var p=st.qps.find(p=>p.id===id);if(p){userInput.value=p.content;userInput.focus();userInput.style.height='auto';userInput.style.height=Math.min(userInput.scrollHeight,150)+'px'}}
+function useQP(id){var p=st.qps.find(p=>p.id===id);if(p){userInput.value=p.content;userInput.focus();autoResizeInput()}}
 function sendQP(id){var p=st.qps.find(p=>p.id===id);if(p){userInput.value=p.content;sendMsg()}}
 function renderQPs(){
   var el=G('qpList');
@@ -843,6 +980,10 @@ async function regenerateResponse(ai){
   var apiMsgs=[];
   var sys=s.systemPrompt||'';
   if(sys)apiMsgs.push({role:'system',content:sys});
+  if(c.continuationProjectId){
+    var ctx = buildContinuationContext(c.continuationProjectId);
+    if(ctx) apiMsgs.push({role:'system',content:'[续写上下文]\n'+ctx});
+  }
   for(var k=0;k<=ai;k++){var m=c.msgs[k];if(k===ai)continue;apiMsgs.push({role:m.role,content:Array.isArray(m.content)?m.content.map(function(p){return p.type==='text'?p.text:''}).join(' '):m.content})}
   streaming=true;sendBtn.classList.add('loading');sendBtn.disabled=true;
   _streamAbort=new AbortController();
@@ -862,18 +1003,39 @@ async function regenerateResponse(ai){
   }catch(e){c.msgs[ai].error=e.message;if(!c.msgs[ai].content)c.msgs[ai].content='(无响应)'}
   finally{streaming=false;_streamAbort=null;sendBtn.classList.remove('loading');sendBtn.disabled=false;sendBtn.querySelector('.btn-text').textContent='发送';sendBtn.onclick=sendMsg;userInput.focus();save();renderAll();scrollBottom()}
 }
+var editMsgIdx=null;
 function editMsg(e,i){
   e.stopPropagation();
   var c=getActive();if(!c)return;
   var m=c.msgs[i];if(!m)return;
+  editMsgIdx=i;
   var text=Array.isArray(m.content)?m.content.map(function(p){return p.type==='text'?p.text:''}).join(' '):m.content;
-  var newText=prompt('编辑消息：',text);
-  if(newText===null||newText===text)return;
+  var ta=G('editMsgTextarea');if(!ta)return;
+  ta.value=text;
+  autoResizeEdit(ta);
+  G('editMsgModal').classList.remove('hidden');
+  G('editMsgModal').style.display='flex';
+  ta.focus();
+}
+function closeEditMsgModal(){
+  var m=G('editMsgModal');if(m){m.classList.add('hidden');m.style.display='none'}
+}
+function saveEditMsg(){
+  var c=getActive();if(!c)return;
+  var m=c.msgs[editMsgIdx];if(!m)return;
+  var ta=G('editMsgTextarea');if(!ta)return;
+  var newText=ta.value;
+  if(newText===m.content)return closeEditMsgModal();
   m.versions.push({content:newText,ts:Date.now()});
   m.vIdx=m.versions.length-1;
   m.content=newText;
   if(m.role==='assistant'){m.versions[m.vIdx].content=newText}
   save();renderAll();scrollBottom();
+  closeEditMsgModal();
+}
+function autoResizeEdit(el){
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight, window.innerHeight*0.6)+'px';
 }
 function copyMsg(e,i){
   e.stopPropagation();
@@ -893,7 +1055,16 @@ marked.setOptions({breaks:true,gfm:true});
 function delMsg(e,i){e.stopPropagation();var c=getActive();if(!c)return;c.msgs.splice(i,1);if(!c.msgs.length)c.title='新对话';save();renderAll();scrollBottom()}
 
 // ===== SEND =====
-function onInputKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg()}}
+function onInputKey(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg()}
+  autoResizeInput();
+}
+function autoResizeInput(){
+  var el=G('userInput');
+  if(!el)return;
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight, 250)+'px';
+}
 
 function stopStream(){
   if(_streamAbort){_streamAbort.abort();_streamAbort=null;}
@@ -937,13 +1108,17 @@ async function sendMsg(){
     c.msgs.push({role:'user',content:parts,versions:[{content:parts,ts:Date.now()}],vIdx:0});
   }else{c.msgs.push({role:'user',content:content,versions:[{content:content,ts:Date.now()}],vIdx:0})}
   attachs=[]; renderAttachs();
-  userInput.value=''; userInput.style.height='auto'; save(); renderAll(); scrollBottom();
+  userInput.value=''; userInput.style.height='auto'; save(); renderAll(); scrollBottom(); autoResizeInput();
 
   c.msgs.push({role:'assistant',content:'',versions:[{content:'',ts:Date.now()}],vIdx:0}); var ai=c.msgs.length-1; save(); renderAll();
 
   var apiMsgs=[];
   var sys=s.systemPrompt||'';
   if(sys)apiMsgs.push({role:'system',content:sys});
+  if(c.continuationProjectId){
+    var ctx = buildContinuationContext(c.continuationProjectId);
+    if(ctx) apiMsgs.push({role:'system',content:'[续写上下文]\n'+ctx});
+  }
   for(var m of c.msgs.slice(0,-1))apiMsgs.push({role:m.role,content:m.content});
 
   streaming=true; sendBtn.classList.add('loading'); sendBtn.disabled=true;
@@ -1070,6 +1245,9 @@ async function fetchModalModels(){
 
 document.addEventListener('DOMContentLoaded',function(){G('negModal').addEventListener('click',function(e){if(e.target===this)this.classList.add('hidden')});G('posModal').addEventListener('click',function(e){if(e.target===this)this.classList.add('hidden')})});
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){G('negModal').classList.add('hidden');G('posModal').classList.add('hidden');}if((e.ctrlKey||e.metaKey)&&e.key==='n'){e.preventDefault();newConv()}});
+
+// Stub for renderAttachs - defined in review.js
+function renderAttachs(){try{var pv=G('attachPreview');if(pv){pv.style.display='none';pv.innerHTML=''}}catch(e){}}
 
 // Init badges
 if(typeof updateRvBadge==='function'){try{updateRvBadge()}catch(e){}}

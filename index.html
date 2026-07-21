@@ -31,7 +31,7 @@
         <div class="side-sec-hdr collapsed" onclick="toggleSec('chat',this)"><span>💬 对话</span><span class="arr">▼</span></div>
         <div class="side-sec-body hidden" id="secChat">
           <div id="convList"></div>
-          <div class="pad"><button class="icn-btn full" onclick="newConv()">＋ 新对话</button></div>
+          <div class="pad" style="display:flex;flex-direction:column;gap:6px"><label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 8px;border-radius:4px;background:var(--hover)"><input type="checkbox" id="continuationMode" style="accent-color:var(--accent)"> 续写模式</label><button class="icn-btn full" onclick="newConv()">＋ 新对话</button></div>
         </div>
       </div>
 
@@ -107,16 +107,9 @@
               <span style="font-size:11px;color:var(--text-secondary);font-weight:600">📦 信息备份</span>
             </div>
             <div style="display:flex;gap:6px">
-              <button class="btn-sm" onclick="exportData()" style="flex:1">📤 导出</button>
-              <button class="btn-sm" onclick="document.getElementById('importFile').click()" style="flex:1">📥 导入</button>
-              <input type="file" id="importFile" accept=".json" onchange="importData(event)" style="display:none">
-            </div>
-            <div style="display:flex;gap:6px">
               <button class="btn-sm" onclick="doCloudExport()" style="flex:1">☁️ 备份至云端</button>
               <button class="btn-sm" onclick="cloudImport()" style="flex:1">☁️ 从云端恢复</button>
             </div>
-            
-            <button class="btn-sm" onclick="publishApp()" style="width:100%;padding:8px;font-size:13px;font-weight:600;background:var(--accent);color:#fff">🚀 发布到云端</button>
           </div>
         </div>
       </div>
@@ -141,7 +134,7 @@
       </div>
       <div style="display:flex;align-items:center;gap:4px">
         <span class="token-info" id="tokenInfo" style="margin-right:6px"></span>
-        <button class="icn-btn" onclick="toggleTheme()" id="themeBtn" title="切换主题">🌙</button><button class="icn-btn" onclick="publishApp()" title="发布到云端">🚀</button>
+        <button class="icn-btn" onclick="toggleTheme()" id="themeBtn" title="切换主题">🌙</button>
         <button class="icn-btn" onclick="clearConv()" title="清空对话">🗑️</button>
       </div>
     </header>
@@ -152,7 +145,7 @@
     <div class="input-area">
       <input type="file" id="attachInput" multiple accept="image/*,.txt,.md,.csv,.json,.pdf" onchange="onAttach(event)">
       <button class="attach-btn" onclick="document.getElementById('attachInput').click()">📎</button>
-      <textarea id="userInput" placeholder="输入消息..." rows="1" onkeydown="onInputKey(event)"></textarea>
+      <textarea id="userInput" placeholder="输入消息..." rows="1" onkeydown="onInputKey(event)" oninput="autoResizeInput()"></textarea>
       <button class="send-btn" id="sendBtn" onclick="sendMsg()"><span class="btn-text">发送</span><span class="spinner"></span></button>
     </div>
   </main>
@@ -377,5 +370,33 @@ if('serviceWorker' in navigator) {
 <button class="btn-sm" onclick="resetPrompt()" style="padding:8px 14px;font-size:12px;background:var(--hover);color:var(--text);border:none;border-radius:6px;cursor:pointer">🔄 恢复默认</button>
 </div>
 </div>
-</div></body>
+</div><!-- 续写模式项目选择弹窗 -->
+<div class="modal-overlay hidden" id="continuationProjModal" onclick="if(event.target===this)closeContinuationProjModal()">
+  <div class="modal-box" style="max-width:400px">
+    <h3>📤 续写模式 - 选择书籍工程</h3>
+    <div style="font-size:12px;color:var(--text-secondary);margin:8px 0">会将该工程的所有数据作为续写上下文。选择工程后即创建对话</div>
+    <div style="margin:8px 0"><label style="font-size:11px;color:var(--text-secondary);display:block;margin-bottom:4px">📄 原文内容（可选，用于续写参考）</label><textarea id="continuationOriginalText" style="width:100%;min-height:80px;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);font-size:12px;font-family:inherit;resize:vertical;line-height:1.4" placeholder="粘贴原文内容，AI将从结尾处续写..."></textarea></div>
+    <div id="continuationProjList" style="max-height:300px;overflow-y:auto;margin:8px 0"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-sm" onclick="closeContinuationProjModal()" style="background:var(--hover);color:var(--text)">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Message Modal -->
+<div class="modal-overlay hidden" id="editMsgModal" onclick="if(event.target===this)closeEditMsgModal()">
+  <div class="modal" style="max-width:700px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:16px;font-weight:700">✏️ 编辑消息</div>
+      <button class="btn-sm" onclick="closeEditMsgModal()" style="padding:4px 10px;font-size:11px;background:#666;color:#fff;border:none;border-radius:4px;cursor:pointer">✕ 关闭</button>
+    </div>
+    <textarea id="editMsgTextarea" style="width:100%;min-height:120px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--input-bg);color:var(--text);font-family:inherit;resize:vertical;line-height:1.5" oninput="autoResizeEdit(this)"></textarea>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn-sm" onclick="saveEditMsg()" style="flex:1;padding:8px;font-size:13px;font-weight:600;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">💾 保存修改</button>
+      <button class="btn-sm" onclick="closeEditMsgModal()" style="padding:8px 14px;font-size:12px;background:var(--hover);color:var(--text);border:none;border-radius:6px;cursor:pointer">取消</button>
+    </div>
+  </div>
+</div>
+
+</body>
 </html>

@@ -146,8 +146,9 @@ function toggleMdlDrop(e){e.stopPropagation();G('mdlDrop').classList.toggle('sho
 function selChatModel(m){st.settings.modelName=m;save();renderAll();G('mdlDrop').classList.remove('show')}
 function renderMdlDrop(){
   var d=G('mdlDrop'), ms=st.settings.availModels||[], cur=st.settings.modelName;
+  if(!d) return;
   if(!ms.length){d.innerHTML='<div class="mdl-drop-item" style="color:var(--text-secondary)">无模型 - 在设置中获取</div>';return}
-  d.innerHTML=ms.map(m=>'<div class="mdl-drop-item'+(m===cur?' active':'')+'" onclick="selChatModel(\''+m.replace(/'/g,"\\'")+'\')">'+m+'</div>').join('');
+  d.innerHTML=ms.map(m=>'<div class="mdl-drop-item'+(m===cur?' active':'')+'" onclick="selChatModel(\''+m.replace(/'/g,"\\'" )+'\')">'+m+'</div>').join('');
 }
 document.addEventListener('click',function(e){var d=G('mdlDrop'),w=document.querySelector('.mdl-badge-wrap');if(d&&w&&!w.contains(e.target))d.classList.remove('show')});
 
