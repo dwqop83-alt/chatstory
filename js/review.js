@@ -1,4 +1,4 @@
-// ===== REVIEW (低级作家) =====
+﻿// ===== REVIEW (低级作家) =====
 function normalizeReasons(value){return Array.isArray(value)?value.filter(Boolean):(value?[value]:[])}
 function reasonStore(kind){return kind==='good'?st.gvReasons:st.rvReasons}
 function selectedReasonValues(kind){var id=kind==='good'?'gvReasonTags':'rvReasonTags';var el=G(id);if(!el)return[];return Array.from(el.querySelectorAll('option:checked')).map(function(x){return x.value})}
@@ -173,16 +173,58 @@ function msgToMem(e,i){
   var c = getActive(); if(!c) return;
   var m = c.msgs[i]; if(!m) return;
   var ct = Array.isArray(m.content) ? m.content.map(function(p){return p.type==='text'?p.text:''}).join(' ') : m.content;
+  if(!ct||!ct.trim()){toast("消息内容为空","error");return}
+  if(!st.projects||!st.projects.length){toast("请先创建书籍工程","error");return}
   _memText = ct;
-  var menu = G('ctxMenu');
-  var btn = e.target;
-  var rect = btn.getBoundingClientRect();
-  setTimeout(function(){
-    menu.style.left = rect.left + 'px';
-    menu.style.top = (rect.bottom + 4) + 'px';
-    menu.classList.add('show');
-    renderCtxSub();
-  }, 100);
+  var modal = document.getElementById("memProjectModal");
+  if(!modal){
+    modal = document.createElement("div");
+    modal.id = "memProjectModal";
+    modal.className = "modal-overlay";
+    modal.style.display = "none";
+    modal.onclick = function(ev){if(ev.target===modal)modal.style.display="none"};
+    modal.innerHTML = "<div class=\"modal\" style=\"max-width:420px\"><div style=\"font-size:16px;font-weight:700;margin-bottom:12px\">\uD83E\uDDE0 添加至长期记忆</div>" +
+      "<div style=\"margin-bottom:10px\"><label style=\"font-size:12px;font-weight:600;display:block;margin-bottom:4px\">记忆名称</label>" +
+      "<input type=\"text\" id=\"memProjectNameInput\" placeholder=\"输入记忆名称...\" style=\"width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:4px;font-size:13px;background:var(--input-bg);color:var(--text);outline:none;box-sizing:border-box\"></div>" +
+      "<div style=\"margin-bottom:10px\"><label style=\"font-size:12px;font-weight:600;display:block;margin-bottom:4px\">选择书籍工程（可多选）</label>" +
+      "<div id=\"memProjectCheckList\" style=\"max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;padding:4px\"></div></div>" +
+      "<div style=\"display:flex;gap:8px;justify-content:flex-end\">" +
+      "<button class=\"btn-sm\" onclick=\"document.getElementById('memProjectModal').style.display='none'\" style=\"background:var(--hover);color:var(--text)\">取消</button>" +
+      "<button class=\"btn-sm\" onclick=\"confirmMemProjectSave()\">保存</button></div></div>";
+    document.body.appendChild(modal);
+  }
+  var list = document.getElementById("memProjectCheckList");
+  list.innerHTML = st.projects.map(function(p){
+    return "<label style=\"display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px\">" +
+      "<input type=\"checkbox\" value=\""+esc(p.id)+"\" "+(p.id===st.activeProject?"checked":"")+" style=\"accent-color:var(--accent)\">" +
+      "\uD83D\uDCC1 "+esc(p.name)+"</label>";
+  }).join("");
+  document.getElementById("memProjectNameInput").value = "";
+  modal.style.display = "flex";
+}
+
+function confirmMemProjectSave(){
+  var name = document.getElementById("memProjectNameInput").value.trim();
+  if(!name){toast("请输入记忆名称","error");return}
+  var checkboxes = document.querySelectorAll("#memProjectCheckList input[type=checkbox]:checked");
+  if(!checkboxes.length){toast("请至少选择一个书籍工程","error");return}
+  var count = 0;
+  for(var ci=0;ci<checkboxes.length;ci++){
+    var pid = checkboxes[ci].value;
+    var p = st.projects.find(function(x){return x.id===pid});
+    if(!p) continue;
+    p.memories = p.memories || [];
+    var memProj = {id:Date.now().toString(36),name:name,items:[{id:Date.now().toString(36),content:_memText,date:new Date().toISOString()}]};
+    p.memories.push(memProj);
+    count++;
+  }
+  save();
+  document.getElementById("memProjectModal").style.display = "none";
+  renderProjects();
+  if(st.activeProject) renderProjectData(st.activeProject);
+  renderProjBody();
+  _memText = "";
+  toast("已添加到 "+count+" 个工程的长期记忆","success");
 }
 
 function flagToReview(){

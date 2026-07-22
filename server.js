@@ -1,4 +1,4 @@
-// ChatStory Server - with password protection and SQLite database
+﻿// ChatStory Server - with password protection and SQLite database
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
