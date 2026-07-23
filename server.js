@@ -199,6 +199,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Upload database to Gitee
+// Upload database to Gitee (using Git Data API for >1MB support)
     if (apiPath === '/api/sync/upload' && req.method === 'POST') {
       const body = await readBody(req);
       const { token, repo, branch } = JSON.parse(body || '{}');
@@ -209,67 +210,130 @@ const server = http.createServer(async (req, res) => {
 
       const base64 = dbBuffer.toString('base64');
       const [owner, repoName] = repo.split('/');
-      const filePath = 'chatstory.db';
+      const branchName = branch || 'main';
       const commitMessage = 'DB backup: ' + new Date().toISOString();
+      const api = 'https://gitee.com/api/v5';
 
-      // Check if file exists
-      let sha = null;
       try {
-        const getRes = await githubRequest('https://gitee.com/api/v5/repos/' + owner + '/' + repoName + '/contents/' + filePath + '?ref=' + (branch || 'main'), {
-          headers: { 'Authorization': 'Bearer ' + token }
+        // 1. Create a blob from the database content
+        const blobRes = await githubRequest(api + '/repos/' + owner + '/' + repoName + '/git/blobs', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: base64, encoding: 'base64' })
         });
-        if (getRes.statusCode === 200) {
-          const data = JSON.parse(getRes.body);
-          sha = data.sha;
+        if (blobRes.statusCode !== 201) {
+          const err = JSON.parse(blobRes.body).message || blobRes.body.substring(0,200);
+          throw new Error('创建 blob 失败: ' + err);
         }
-      } catch(e) {}
+        const blobSha = JSON.parse(blobRes.body).sha;
 
-      // Create or update file
-      const putBody = JSON.stringify({
-        message: commitMessage,
-        content: base64,
-        branch: branch || 'main',
-        sha: sha || undefined
-      });
+        // 2. Get current branch ref + commit + tree SHA
+        let baseTreeSha = null, parentCommitSha = null;
+        try {
+          const refRes = await githubRequest(api + '/repos/' + owner + '/' + repoName + '/git/refs/heads/' + branchName, {
+            headers: { 'Authorization': 'Bearer ' + token }
+          });
+          if (refRes.statusCode === 200) {
+            parentCommitSha = JSON.parse(refRes.body).object.sha;
+            const commitRes = await githubRequest(api + '/repos/' + owner + '/' + repoName + '/git/commits/' + parentCommitSha, {
+              headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (commitRes.statusCode === 200) {
+              baseTreeSha = JSON.parse(commitRes.body).tree.sha;
+            }
+          }
+        } catch(e) {} // First commit - no parent
 
-      const putRes = await githubRequest('https://gitee.com/api/v5/repos/' + owner + '/' + repoName + '/contents/' + filePath, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json;charset=UTF-8',
-          'Authorization': 'Bearer ' + token
-        },
-        body: putBody
-      });
+        // 3. Create tree with the new blob
+        const treeRes = await githubRequest(api + '/repos/' + owner + '/' + repoName + '/git/trees', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            base_tree: baseTreeSha || undefined,
+            tree: [{ path: 'chatstory.db', mode: '100644', type: 'blob', sha: blobSha }]
+          })
+        });
+        if (treeRes.statusCode !== 201) {
+          const err = JSON.parse(treeRes.body).message || treeRes.body.substring(0,200);
+          throw new Error('创建 tree 失败: ' + err);
+        }
+        const treeSha = JSON.parse(treeRes.body).sha;
 
-      if (putRes.statusCode === 201 || putRes.statusCode === 200) {
-        return json(res, { ok: true, message: '数据库已上传到 Gitee' });
+        // 4. Create commit
+        const commitRes2 = await githubRequest(api + '/repos/' + owner + '/' + repoName + '/git/commits', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: commitMessage,
+            tree: treeSha,
+            parents: parentCommitSha ? [parentCommitSha] : []
+          })
+        });
+        if (commitRes2.statusCode !== 201) {
+          const err = JSON.parse(commitRes2.body).message || commitRes2.body.substring(0,200);
+          throw new Error('创建 commit 失败: ' + err);
+        }
+        const newCommitSha = JSON.parse(commitRes2.body).sha;
+
+        // 5. Update branch reference
+        const refRes2 = await githubRequest(api + '/repos/' + owner + '/' + repoName + '/git/refs/heads/' + branchName, {
+          method: 'PATCH',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sha: newCommitSha, force: false })
+        });
+        if (refRes2.statusCode !== 200) {
+          const err = JSON.parse(refRes2.body).message || refRes2.body.substring(0,200);
+          throw new Error('更新分支引用失败: ' + err);
+        }
+
+        return json(res, { ok: true, message: '数据库已上传到 Gitee', size: dbBuffer.length });
+      } catch(e) {
+        return json(res, { ok: false, error: '上传失败: ' + e.message }, 500);
       }
-      const errText = putRes.body.substring(0, 500);
-      return json(res, { ok: false, error: '上传失败: ' + errText }, 500);
     }
 
-    // Download database from Gitee
+    // Download database from Gitee (using Git Data API)
     if (apiPath === '/api/sync/download' && req.method === 'POST') {
       const body = await readBody(req);
       const { token, repo, branch } = JSON.parse(body || '{}');
       if (!token || !repo) return json(res, { error: 'Missing token or repo' }, 400);
 
       const [owner, repoName] = repo.split('/');
-      const filePath = 'chatstory.db';
+      const branchName = branch || 'main';
+      const api = 'https://gitee.com/api/v5';
 
-      const getRes = await githubRequest('https://gitee.com/api/v5/repos/' + owner + '/' + repoName + '/contents/' + filePath + '?ref=' + (branch || 'main'), {
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
+      try {
+        // 1. Get branch ref → commit SHA
+        const refRes = await githubRequest(api + '/repos/' + owner + '/' + repoName + '/git/refs/heads/' + branchName, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (refRes.statusCode !== 200) throw new Error('分支不存在或无法访问');
+        const commitSha = JSON.parse(refRes.body).object.sha;
 
-      if (getRes.statusCode === 200) {
-        const data = JSON.parse(getRes.body);
-        const buffer = Buffer.from(data.content, 'base64');
+        // 2. Get the commit tree
+        const treeRes = await githubRequest(api + '/repos/' + owner + '/' + repoName + '/git/trees/' + commitSha + '?recursive=1', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (treeRes.statusCode !== 200) throw new Error('无法获取文件树');
+        const tree = JSON.parse(treeRes.body);
+        const entry = tree.tree.find(function(e) { return e.path === 'chatstory.db' && e.type === 'blob'; });
+        if (!entry) throw new Error('chatstory.db 不存在于仓库中');
+
+        // 3. Get the blob content
+        const blobRes = await githubRequest(api + '/repos/' + owner + '/' + repoName + '/git/blobs/' + entry.sha, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (blobRes.statusCode !== 200) throw new Error('无法下载文件内容');
+        const blobData = JSON.parse(blobRes.body);
+        const content = blobData.content.replace(/\n/g, '');
+        const buffer = Buffer.from(content, 'base64');
+
         database.restoreDb(buffer);
         return json(res, { ok: true, message: '数据库已从 Gitee 恢复', size: buffer.length });
+      } catch(e) {
+        return json(res, { ok: false, error: '下载失败: ' + e.message }, 404);
       }
-      return json(res, { ok: false, error: '下载失败: 文件不存在或无法访问' }, 404);
     }
-
     // Get database info
     if (apiPath === '/api/data/info' && req.method === 'GET') {
       const state = await database.loadState();
@@ -404,8 +468,8 @@ const server = http.createServer(async (req, res) => {
 
 process.on('uncaughtException', function(err) { console.error('Uncaught:', err.message); });
 process.on('unhandledRejection', function(err) { console.error('Unhandled:', err.message); });
+server.timeout = 300000; // 5 min timeout
 server.on('error', function(err) { console.error('Server error:', err.message); });
-
 // Initialize database and start server
 async function start() {
   try {

@@ -10,14 +10,15 @@ const G = id => document.getElementById(id);
 const msgsEl = G('msgs'), convListEl = G('convList'), userInput = G('userInput');
 const sendBtn = G('sendBtn'), mdlBadge = G('mdlBadge'), chatTitle = G('chatTitle');
 
-function save() { localStorage.setItem(SK, JSON.stringify(st)); if(_saveTimer) clearTimeout(_saveTimer);
+function save() { try{localStorage.setItem(SK, JSON.stringify(st))}catch(e){console.warn('localStorage save failed:',e.message)} if(_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(function(){
-    fetch("/api/data/save", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(st)}).catch(function(e){});
+    fetch("/api/data/save", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(st)}).catch(function(e){console.warn('Server failed:',e.message)});
   }, 500);
 }
-function load(){var saved=localStorage.getItem(SK);if(saved){try{st=JSON.parse(saved)}catch(e){}}normalizeState();fetch('/api/data/load').then(function(r){return r.json()}).then(function(d){if(d.ok&&d.data){var serverData=d.data;if(serverData.version>=(st.version||0)){st=serverData;normalizeState();if(typeof renderAll==='function')renderAll()}else if(st.version>(serverData.version||0)){if(typeof save==='function')save()}}}).catch(function(e){});}
-function normalizeState(){st.convs=st.convs||[];st.projects=st.projects||[];st.projects.forEach(function(p){p.conversations=p.conversations||[];p.rvEntries=p.rvEntries||[];p.rvReasons=p.rvReasons||[];p.gvEntries=p.gvEntries||[];p.gvReasons=p.gvReasons||[];p.memories=p.memories||[];p.lorebooks=p.lorebooks||[]});st.settings=st.settings||{};st.version=st.version||0;st.rvEntries=st.rvEntries||[];st.rvReasons=st.rvReasons||[];st.gvEntries=st.gvEntries||[];st.gvReasons=st.gvReasons||[];st.qps=st.qps||[];st.memories=st.memories||[];if(!st.settings.giteeToken)st.settings.giteeToken="b6df2c768b72835f8fad74d052509656";if(!st.settings.giteeRepo)st.settings.giteeRepo="middle000/story_-project";if(!st.settings.giteeBranch)st.settings.giteeBranch="main";}
+function load(){var saved=localStorage.getItem(SK);if(saved){try{st=JSON.parse(saved)}catch(e){}}normalizeState();fetch('/api/data/load').then(function(r){return r.json()}).then(function(d){if(d.ok&&d.data){var serverData=d.data;if(serverData.version>=(st.version||0)){st=serverData;normalizeState();if(typeof renderAll==='function')renderAll()}else if(st.version>(serverData.version||0)){if(typeof save==='function')save()}}}).catch(function(e){console.warn('Server failed:',e.message)});}
+function normalizeState(){st.convs=st.convs||[];st.projects=st.projects||[];st.projects.forEach(function(p){p.conversations=p.conversations||[];p.rvEntries=p.rvEntries||[];p.rvReasons=p.rvReasons||[];p.gvEntries=p.gvEntries||[];p.gvReasons=p.gvReasons||[];p.memories=p.memories||[];p.lorebooks=p.lorebooks||[]});st.settings=st.settings||{};st.version=st.version||0;st.rvEntries=st.rvEntries||[];st.rvReasons=st.rvReasons||[];st.gvEntries=st.gvEntries||[];st.gvReasons=st.gvReasons||[];st.qps=st.qps||[];st.memories=st.memories||[];}
 function applyTheme(){var tb=G('themeBtn');if(st.theme==='dark'){document.body.classList.add('dark');if(tb)tb.textContent='☀️'}else{document.body.classList.remove('dark');if(tb)tb.textContent='🌙'}}
+function toggleTheme(){st.theme=st.theme==='dark'?'light':'dark';applyTheme();save()}
 load();applyTheme();renderAll();
 
 function toggleSidebar(){var sb=G('sidebar');var w=window.innerWidth;if(w>768){sb.classList.toggle('collapsed')}else{sb.classList.toggle('open');document.querySelector('.side-backdrop').classList.toggle('show')}}
@@ -447,146 +448,146 @@ if(Object.defineProperty){
   Object.defineProperty(st, 'lorebook', { get: getLB, set: setLB, enumerable: true, configurable: true });
 }
 function newConv(){
-  var cb = document.getElementById('continuationMode');
-  if(cb && cb.checked){
-    openContinuationProjModal();
-    return;
-  }
   var c = {id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),title:'新对话',msgs:[],createdAt:Date.now()};
   st.convs.unshift(c); st.activeCid=c.id; save(); renderAll(); userInput.focus();
 }
 
-// ===== CONTINUATION MODE =====
-function openContinuationProjModal(){
-  renderContinuationProjList();
-  G('continuationProjModal').classList.remove('hidden');
-}
-function closeContinuationProjModal(){
-  G('continuationProjModal').classList.add('hidden');
-}
-function renderContinuationProjList(){
-  var el = G('continuationProjList');
-  if(!el) return;
-  if(!st.projects.length){
-    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary);font-size:12px">📁 请先创建书籍工程</div>';
-    return;
-  }
-  var h = '';
-  for(var i=0;i<st.projects.length;i++){
-    var p = st.projects[i];
-    h += '<div class="proj-select-item" onclick="selectContinuationProject(\''+p.id+'\')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">';
-    h += '<span style="font-size:14px">📁</span>';
-    h += '<div><div style="font-size:13px;font-weight:500">'+esc(p.name)+'</div>';
-    h += '<div style="font-size:10px;color:var(--text-secondary)">🧠'+(p.rvEntries?.length||0)+' 🏆'+(p.gvEntries?.length||0)+' 🧠'+(p.memories?.length||0)+' 🌍'+(p.lorebooks?.length||0)+'</div></div>';
-    h += '</div>';
-  }
-  el.innerHTML = h;
-}
 
-async function selectContinuationProject(pid){
-  closeContinuationProjModal();
-  var p = st.projects.find(function(x){return x.id===pid});
-  if(!p){toast('工程不存在','error');return}
-  var origTextEl = document.getElementById('continuationOriginalText');
-  var origText = origTextEl ? origTextEl.value.trim() : '';
-  var c = {id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),title:'续写:'+p.name,msgs:[],createdAt:Date.now(),continuationProjectId:pid,continuationOriginalText:origText};
-  st.convs.unshift(c); st.activeCid=c.id; save(); renderAll(); userInput.focus();
-  toast('已创建续写对话，正在生成续写内容...','success');
-  var cb = document.getElementById('continuationMode');
-  if(cb) cb.checked = false;
-  
-  if(origText){
-        userInput.value = origText + '\n\n' + '【续写要求】请从原文结尾处开始续写，严格按照以下要求：\n' +
-        '【对话要求】\n' +
-        '1. 第一句必须是：李慕白打量着眼前的老者。破旧道袍，发白的胡须，笑眯眯的眼睛里透着几分精明——典型的神棍形象。\n' +
-        '2. 第二句必须是："老先生能看出我有什么难处？"李慕白试探着问。\n' +
-        '3. 张陵回答："老夫观你面堂发暗，印堂带青，显然是刚刚经历了一场大变故。而且..."他凑近了些，压低声音，"你身上没有一丝灵力波动，却穿着青云宗外门弟子的服饰，想必是遇到了什么奇遇吧？"\n' +
-        '【情节要求】\n' +
-        '4. 李慕白心头一震，低头看袖口云纹图案，这才注意到是青云宗制服\n' +
-        '5. 张陵自称"张半仙"，以江湖神棍口吻说话\n' +
-        '6. 张陵收李慕白为帮手，包吃包住每月十两银子\n' +
-        '7. 白天跟张陵走街串巷学习风土人情，晚上琢磨修炼之路\n' +
-        '8. 世界设定：玄天大陆，修炼灵力，境界：练气、筑基、金丹、元婴、化神、大乘、渡劫\n' +
-        '9. 青云城是青云国边陲小城，隶属青云宗管辖，每年招收弟子\n' +
-        '【结尾要求】\n' +
-        '10. 结尾必须是：而此刻，在青云城的一间密室里，张陵正盘膝而坐，手中捏着一枚与李慕白那块一模一样的碧绿玉佩。他的眼神深邃，再无半分市井神棍的模样。"天机玉佩...重现人间了。"他喃喃自语，"看来，这片天要变了。"';
-    setTimeout(function(){ sendMsg(); }, 100);
-  }
-}
 
-function buildContinuationContext(pid){
-  var p = st.projects.find(function(x){return x.id===pid});
-  if(!p) return '';
-  var c = getActive();
-  var parts = [];
-  parts.push('【续写上下文】');
-  
-  if(c && c.continuationOriginalText){
-    parts.push('');
-    parts.push('=== 原文 ===');
-    parts.push(c.continuationOriginalText);
-  }
-  
-  var lbs = p.lorebooks || [];
-  if(lbs.length){
-    parts.push('');
-    parts.push('=== 世界观数据 ===');
-    for(var li=0;li<lbs.length;li++){
-      var lb = lbs[li];
-      if(lb.data){
-        if(lb.data.characters && lb.data.characters.length){
-          parts.push('【角色】');
-          for(var ci=0;ci<lb.data.characters.length;ci++){
-            var ch = lb.data.characters[ci];
-            parts.push('- '+ch.name+(ch.alias?'(又称'+ch.alias+')':'')+': '+ch.description);
-          }
-        }
-        if(lb.data.settings && lb.data.settings.length){
-          parts.push('【地点】');
-          for(var si=0;si<lb.data.settings.length;si++){
-            parts.push('- '+lb.data.settings[si].name+': '+lb.data.settings[si].description);
-          }
-        }
-      }
-    }
-  }
-  
-  var gvEntries = p.gvEntries || [];
-  if(gvEntries.length){
-    parts.push('');
-    parts.push('=== 高级作家 — 优秀描写 ===');
-    for(var gi=0;gi<gvEntries.length;gi++){
-      var gv = gvEntries[gi];
-      parts.push('【范例】'+esc(gv.content));
-    }
-  }
-  
-  var rvEntries = p.rvEntries || [];
-  if(rvEntries.length){
-    parts.push('');
-    parts.push('=== 低级作家 — 需要避免的描写 ===');
-    for(var ri=0;ri<rvEntries.length;ri++){
-      var rv = rvEntries[ri];
-      parts.push('【反例】'+esc(rv.content));
-    }
-  }
-  
-  var mems = p.memories || [];
-  if(mems.length){
-    parts.push('');
-    parts.push('=== 长期记忆 ===');
-    for(var mi=0;mi<mems.length;mi++){
-      var mem = mems[mi];
-      if(mem.items && mem.items.length){
-        for(var ii=0;ii<mem.items.length;ii++){
-          parts.push('  * '+esc(mem.items[ii].content));
-        }
-      }
-    }
-  }
-  
-  return parts.join('\\n');
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function getActive(){return st.convs.find(c=>c.id===st.activeCid)||null}
 function delConv(id,e){e.stopPropagation();if(!confirm('删除对话？'))return;st.convs=st.convs.filter(c=>c.id!==id);if(st.activeCid===id)st.activeCid=st.convs[0]?.id||null;save();renderAll()}
 function selConv(id){st.activeCid=id;save();renderAll();scrollBottom()}
@@ -980,11 +981,11 @@ async function regenerateResponse(ai){
   var apiMsgs=[];
   var sys=s.systemPrompt||'';
   if(sys)apiMsgs.push({role:'system',content:sys});
-  if(c.continuationProjectId){
-    var ctx = buildContinuationContext(c.continuationProjectId);
-    if(ctx) apiMsgs.push({role:'system',content:'[续写上下文]\n'+ctx});
-  }
-  for(var k=0;k<=ai;k++){var m=c.msgs[k];if(k===ai)continue;apiMsgs.push({role:m.role,content:Array.isArray(m.content)?m.content.map(function(p){return p.type==='text'?p.text:''}).join(' '):m.content})}
+
+
+
+
+  for(var k=0;k<=ai;k++){var m=c.msgs[k];if(k===ai||m.error)continue;apiMsgs.push({role:m.role,content:Array.isArray(m.content)?m.content.map(function(p){return p.type==='text'?p.text:''}).join(' '):m.content})}
   streaming=true;sendBtn.classList.add('loading');sendBtn.disabled=true;
   _streamAbort=new AbortController();
   sendBtn.querySelector('.btn-text').textContent='停止';
@@ -1052,7 +1053,7 @@ function esc(s){var d=document.createElement('div');d.textContent=s;return d.inn
 marked.setOptions({breaks:true,gfm:true});
 
 // ===== MESSAGE ACTIONS =====
-function delMsg(e,i){e.stopPropagation();var c=getActive();if(!c)return;c.msgs.splice(i,1);if(!c.msgs.length)c.title='新对话';save();renderAll();scrollBottom()}
+function delMsg(e,i){e.stopPropagation();var c=getActive();if(!c)return;var m=c.msgs[i];if(!m)return;if(m.versions&&m.versions.length>1){m.versions.splice(m.vIdx,1);if(m.vIdx>=m.versions.length)m.vIdx=m.versions.length-1;m.content=m.versions[m.vIdx].content;save();renderAll();scrollBottom();return}c.msgs.splice(i,1);if(!c.msgs.length)c.title='新对话';save();renderAll();scrollBottom()}
 
 // ===== SEND =====
 function onInputKey(e){
@@ -1115,11 +1116,11 @@ async function sendMsg(){
   var apiMsgs=[];
   var sys=s.systemPrompt||'';
   if(sys)apiMsgs.push({role:'system',content:sys});
-  if(c.continuationProjectId){
-    var ctx = buildContinuationContext(c.continuationProjectId);
-    if(ctx) apiMsgs.push({role:'system',content:'[续写上下文]\n'+ctx});
-  }
-  for(var m of c.msgs.slice(0,-1))apiMsgs.push({role:m.role,content:m.content});
+
+
+
+
+for(var m of c.msgs.slice(0,-1)){if(m.error)continue;apiMsgs.push({role:m.role,content:m.content})}
 
   streaming=true; sendBtn.classList.add('loading'); sendBtn.disabled=true;
   _streamAbort=new AbortController();
