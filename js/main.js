@@ -158,7 +158,7 @@ function renderProjects(){
     h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)"><span>🧠 长期记忆</span><span class="arr">▼</span></div>';
     h += '<div class="side-sec-body hidden">';
     h += '<div class="memList" id="memList-'+p.id+'"></div>';
-    h += '<div style="';
+    h += '<div class="memList" id="memList-'+p.id+'"></div>';
     h += '</div></div>';
     h += '<div class="side-sec">';
     h += '<div class="side-sec-hdr collapsed" onclick="toggleSubSec(this)"><span>🌍 世界观数据</span><span class="arr">▼</span></div>';
